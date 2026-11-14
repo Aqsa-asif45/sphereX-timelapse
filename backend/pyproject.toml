@@ -1,0 +1,23 @@
+[project]
+name = "spherex-timelens-backend"
+version = "0.1.0"
+description = "FastAPI backend for SPHEREx TimeLens"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "network: talks to NASA, IRSA, Gaia or MAST (skip with: pytest -m \"not network\")",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+# E/W: style, F: mistakes, I: import order, B: likely bugs, UP: modern Python
+select = ["E", "W", "F", "I", "B", "UP"]
