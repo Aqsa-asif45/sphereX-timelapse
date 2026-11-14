@@ -14,22 +14,50 @@ blinks them. You can also:
 - export a GIF or video;
 - keep a list of things you spotted.
 
-## Quick start
+## Run it on your computer
 
-Needs Node.js 20+. Nothing else (no Python, no database).
+You need **Node.js 20 or newer** ([nodejs.org](https://nodejs.org), the LTS version) and **git**.
+Check with `node --version`. Nothing else: no Python, no database, no API keys.
 
 ```bash
+git clone https://github.com/Kietsuka/-spherex-timelapse.git spherex-timelapse
+cd spherex-timelapse
 npm install
 npm run build
-npm start                      # http://localhost:5173
+npm start
 ```
 
-Optional:
+When it prints `SPHEREx time-lapse running at http://localhost:5173`, open:
+- **http://localhost:5173/timelens/**: TimeLens, the new interface
+- **http://localhost:5173/**: the original viewer
+
+Keep the terminal open while you use it. **Ctrl + C** stops it.
+
+Good to know:
+- **Keep the folder name** (`spherex-timelapse`) at the end of the clone command. The repo name starts with a hyphen, and `cd -spherex-timelapse` fails in PowerShell, macOS and Linux.
+- **Run `npm run build` again after every `git pull`.** The built files (`dist/`) are not in git.
+- **Don't open the HTML files directly.** They show a blank page; the server must be running.
+- **Everyone runs their own copy.** The server only accepts connections from the same computer.
+- **The first visit to a target is slow.** It downloads that target's images from NASA, which can take a few minutes; later visits are instant. To pre-load the five featured targets, run `node scripts/warm.mjs` in a second terminal while the server is running.
+
+### If it doesn't work
+
+| You see | Fix |
+|---|---|
+| `cd: -s: invalid option`, or `A parameter cannot be found that matches parameter name 'spherex-timelapse'` | The folder name starts with a hyphen (also from **Download ZIP**: `-spherex-timelapse-main`). Rename the folder to `spherex-timelapse`, or use `cd ./-spherex-timelapse`. |
+| `Cannot find module '...dist\server.js'` | You skipped the build. Run `npm run build`, then `npm start`. |
+| `listen EADDRINUSE: address already in use 127.0.0.1:5173` | Something else already uses port 5173 (another copy, or a Vite app). Stop it, or pick another port and open that one instead, e.g. http://localhost:5180/timelens/:<br>PowerShell: `$env:PORT=5180; npm start`<br>Command Prompt: `set PORT=5180&& npm start`<br>macOS / Linux: `PORT=5180 npm start` |
+| `npm.ps1 cannot be loaded because running scripts is disabled on this system` (Windows PowerShell) | Use Command Prompt instead, or type `npm.cmd` in place of `npm`, or allow scripts once with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. |
+| `node` or `npm` "is not recognized" / "command not found" | Install Node.js LTS, then open a **new** terminal. |
+| `npm run build && npm start` fails with "The token '&&' is not a valid statement separator" | Older Windows PowerShell has no `&&`. Run the two commands one after the other. |
+| The page opens but images never arrive | The server needs internet access to NASA's AWS bucket (`nasa-irsa-spherex.s3.amazonaws.com`). Some school or office networks block it, so try another network. If NASA's IRSA search is down, that's fine: the app falls back to its built-in sky index. |
+
+### Other commands
 
 ```bash
-npm run index                  # build/refresh the local sky index (see "Data" below)
-node scripts/warm.mjs          # pre-load the five challenge targets for an instant demo
+node scripts/warm.mjs          # pre-load the five challenge targets (server must be running)
 npm run dev                    # rebuild on save and restart the server
+npm run index                  # rebuild/refresh the local sky index (see "How the data flows")
 npm run typecheck
 ```
 
@@ -42,7 +70,7 @@ http://localhost:5173/?q=Barnard's%20Star&embed=1      (no header or side panel,
 
 ## TimeLens (second frontend)
 
-`npm run build && npm start`, then open **http://localhost:5173/timelens/**. The original app stays at `/`.
+Start the server as in [Run it on your computer](#run-it-on-your-computer), then open **http://localhost:5173/timelens/**. The original app stays at `/`.
 
 TimeLens is a redesigned interface on the same server and the same verified image code.
 - Four workspaces: Sky (deepest stack), Time (blink, play, every exposure, side by side, difference), Spectrum (spectrum with error bars and a light curve), and Movers (finder, Gaia check, review status, CSV/JSON).
