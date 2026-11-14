@@ -34,6 +34,7 @@ def test_unknown_name_is_404():
         assert client.get("/api/resolve", params={"q": "zzqx not a star 123"}).status_code == 404
 
 
+@pytest.mark.slow
 def test_barnards_star_search():
     with TestClient(app) as client:
         res = _search(client, "barnard")
@@ -51,6 +52,7 @@ def test_barnards_star_search():
     assert [f["mjd"] for f in frames] == sorted(f["mjd"] for f in frames)
 
 
+@pytest.mark.slow
 def test_stream_ends_with_the_same_result():
     with TestClient(app) as client:
         t = client.get("/api/resolve", params={"q": "barnard"}).json()
@@ -62,6 +64,7 @@ def test_stream_ends_with_the_same_result():
     assert json.dumps(events)  # stream parsed
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("slug, old_site", [("wise-0855", 258), ("rw-aur", 333), ("eps-indi-b", 458), ("r-dra", 797)])
 def test_counts_match_the_old_site(slug, old_site):
     """The old site found these on 14 Nov 2026. QR3 grows weekly, so allow growth, never loss."""

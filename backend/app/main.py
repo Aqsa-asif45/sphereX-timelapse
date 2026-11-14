@@ -5,6 +5,7 @@ Run from the backend/ folder:
 Interactive API docs: http://localhost:8000/api/docs
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import httpx
@@ -13,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .config import USER_AGENT, settings
-from .routers import health, observations, resolve, targets
+from .routers import catalogs, cutouts, health, observations, pixels, previews, resolve, status, targets
 
 
 @asynccontextmanager
@@ -25,6 +26,8 @@ async def lifespan(app: FastAPI):
         limits=httpx.Limits(max_connections=settings.http_concurrency),
         follow_redirects=True,
     )
+    # limits how many byte-range reads go to AWS at once, across all cutout requests
+    app.state.s3 = asyncio.Semaphore(settings.http_concurrency)
     yield
     await app.state.http.aclose()
 
@@ -46,5 +49,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (health, targets, resolve, observations):
+for r in (health, status, targets, resolve, observations, cutouts, pixels, catalogs, previews):
     app.include_router(r.router, prefix="/api")

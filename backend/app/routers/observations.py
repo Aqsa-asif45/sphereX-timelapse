@@ -8,6 +8,7 @@ Optional: epoch_mjd, pmra, pmdec (mas/yr) so a moving star is placed correctly o
 
 import asyncio
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -17,20 +18,24 @@ from ..services.frames import search
 
 router = APIRouter(tags=["search"])
 
-RA = Query(..., ge=0, lt=360, description="Right ascension, degrees (ICRS)")
-DEC = Query(..., ge=-90, le=90, description="Declination, degrees (ICRS)")
-EPOCH = Query(J2000_MJD, ge=30000, le=80000, description="Epoch of ra/dec as MJD (J2000 = 51544.5)")
-PM = Query(None, ge=-20000, le=20000, description="Proper motion, mas/yr")
+# Use Annotated types for parameters shared between endpoints: FastAPI copies them for each use.
+# (A plain `x = Query(...)` object shared by two parameters gets renamed by FastAPI, so the second
+# parameter silently reads the first one's value: that is how pmdec once read pmra.)
+Ra = Annotated[float, Query(ge=0, lt=360, description="Right ascension, degrees (ICRS)")]
+Dec = Annotated[float, Query(ge=-90, le=90, description="Declination, degrees (ICRS)")]
+Epoch = Annotated[float, Query(ge=30000, le=80000, description="Epoch of ra/dec as MJD (J2000 = 51544.5)")]
+PmRa = Annotated[float | None, Query(ge=-20000, le=20000, description="Proper motion in RA (incl. cos dec), mas/yr")]
+PmDec = Annotated[float | None, Query(ge=-20000, le=20000, description="Proper motion in Dec, mas/yr")]
 
 
 @router.get("/observations")
 async def observations(
     request: Request,
-    ra: float = RA,
-    dec: float = DEC,
-    epoch_mjd: float = EPOCH,
-    pmra: float | None = PM,
-    pmdec: float | None = PM,
+    ra: Ra,
+    dec: Dec,
+    epoch_mjd: Epoch = J2000_MJD,
+    pmra: PmRa = None,
+    pmdec: PmDec = None,
 ) -> dict:
     out = await search(request.app.state.http, ra, dec, epoch_mjd, pmra, pmdec)
     if not out["count"] and out["errors"]:
@@ -41,11 +46,11 @@ async def observations(
 @router.get("/observations/stream")
 async def observations_stream(
     request: Request,
-    ra: float = RA,
-    dec: float = DEC,
-    epoch_mjd: float = EPOCH,
-    pmra: float | None = PM,
-    pmdec: float | None = PM,
+    ra: Ra,
+    dec: Dec,
+    epoch_mjd: Epoch = J2000_MJD,
+    pmra: PmRa = None,
+    pmdec: PmDec = None,
 ) -> StreamingResponse:
     queue: asyncio.Queue = asyncio.Queue()
 

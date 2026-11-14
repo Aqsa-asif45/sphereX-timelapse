@@ -10,6 +10,7 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
+    "slow: a long live test (full searches, IRSA catalogues); run in Phase 13 or with -m slow",
     "network: talks to NASA, IRSA, Gaia or MAST (skip with: pytest -m \"not network\")",
 ]
 

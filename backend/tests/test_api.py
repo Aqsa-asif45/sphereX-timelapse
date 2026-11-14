@@ -20,6 +20,24 @@ def test_resolve_coordinates_and_errors():
     assert too_long.status_code == 422
 
 
+def test_observations_passes_every_parameter_through(monkeypatch):
+    """Regression: pmdec used to be read from pmra (a shared FastAPI Query object)."""
+    seen = {}
+
+    async def fake_search(client, ra, dec, epoch_mjd, pmra, pmdec, report=None):
+        seen.update(ra=ra, dec=dec, epoch_mjd=epoch_mjd, pmra=pmra, pmdec=pmdec)
+        return {"count": 1, "errors": {}}
+
+    monkeypatch.setattr("app.routers.observations.search", fake_search)
+    params = {"ra": 269.45, "dec": 4.69, "epoch_mjd": 51544.5, "pmra": -801.551, "pmdec": 10362.394}
+    with TestClient(app) as client:
+        assert client.get("/api/observations", params=params).status_code == 200
+    assert seen == params
+    with TestClient(app) as client:
+        assert client.get("/api/observations", params={"ra": 10, "dec": 20}).status_code == 200
+    assert seen == {"ra": 10, "dec": 20, "epoch_mjd": 51544.5, "pmra": None, "pmdec": None}
+
+
 def test_observations_rejects_bad_positions():
     with TestClient(app) as client:
         assert client.get("/api/observations", params={"ra": 400, "dec": 0}).status_code == 422

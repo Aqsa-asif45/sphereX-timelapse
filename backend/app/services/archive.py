@@ -2,7 +2,8 @@
 
 1. IRSA SIA2, DR1 and QR3 in parallel (fast; about a day behind new data).
 2. If a collection fails, or nothing is found: IRSA TAP (slow, but no lag).
-3. Keep each week from one release only: DR1 > QR3 > QR2.
+3. If IRSA is unreachable: the local sky index (skyindex.py), built from NASA's AWS file listing.
+4. Keep each week from one release only: DR1 > QR3 > QR2.
 
 Each candidate is one file = one exposure on one detector. Its "key" is the file's path on NASA's AWS
 bucket, which is also the frame id the rest of the app uses.
@@ -11,13 +12,14 @@ bucket, which is also the frame id the rest of the app uses.
 import asyncio
 import io
 import re
+import time
 from datetime import UTC, datetime, timedelta
 
 import httpx
 import numpy as np
 from astropy.io.votable import parse as parse_votable
 
-from ..config import COLLECTIONS, IRSA_FILES, SIA_URL, TAP_URL, release_rank
+from ..config import COLLECTIONS, IRSA, IRSA_FILES, SIA_URL, TAP_URL, release_rank
 
 # dr1/level2/2025W33_2C/l2b-v27-2026-228/6/level2_2025W33_2C_0321_1D6_spx_l2b-v27-2026-228.fits
 KEY_RE = re.compile(
@@ -149,12 +151,55 @@ def one_release_per_week(cands: list[dict]) -> list[dict]:
     return sorted(out, key=lambda c: (c["mjd_start"], c["det"]))
 
 
+_irsa_state = {"ok": None, "at": 0.0}
+
+
+async def irsa_reachable(client: httpx.AsyncClient) -> bool:
+    """A quick check (remembered for a minute) so a search does not wait on IRSA's long timeouts."""
+    if _irsa_state["ok"] is not None and time.monotonic() - _irsa_state["at"] < 60:
+        return _irsa_state["ok"]
+    try:
+        r = await client.get(f"{IRSA}/", timeout=httpx.Timeout(8, connect=5))
+        ok = r.status_code < 500
+    except httpx.HTTPError:
+        ok = False
+    _irsa_state.update(ok=ok, at=time.monotonic())
+    return ok
+
+
+def _from_index(ra: float, dec: float) -> list[dict]:
+    from . import skyindex  # imported here: skyindex is only needed when IRSA is down
+
+    out, seen = [], set()
+    for c in skyindex.candidates(ra, dec):
+        if c["ids"][0] not in seen:
+            seen.add(c["ids"][0])
+            out.append({**describe_key(c["ids"][0]), **c, "lambda_min_um": None, "lambda_max_um": None})
+    return out
+
+
 async def find_candidates(client: httpx.AsyncClient, ra: float, dec: float, report=None) -> dict:
     """Every file IRSA lists at this position, one release per week. Never hides a failed source."""
 
     def say(**event):
         if report:
             report(event)
+
+    if not await irsa_reachable(client):
+        say(type="fallback", source="index", reason="IRSA is unreachable")
+        from .skyindex import coverage
+
+        cov = coverage()
+        return {
+            "candidates": one_release_per_week(_from_index(ra, dec)),
+            "sources": ["index"],
+            "complete": True,
+            "errors": {"irsa": "unreachable"},
+            "notes": [
+                f"IRSA is unreachable, so the local sky index was used ({cov['indexed_weeks']} of "
+                f"{cov['weeks']} weeks indexed). Weeks newer than the index are missing."
+            ],
+        }
 
     async def one(collection: str):
         try:
@@ -181,7 +226,11 @@ async def find_candidates(client: httpx.AsyncClient, ra: float, dec: float, repo
             notes.append(f"{why}; filled in from IRSA TAP.")
         except ArchiveError as e:
             errors["tap"] = str(e)
-            notes.append(f"{why}; TAP failed too, so these results may be incomplete.")
+            say(type="fallback", source="index", reason=f"TAP failed too ({e})")
+            cands += _from_index(ra, dec)  # one release per week (below) keeps IRSA's rows where it answered
+            sources.append("index")
+            complete = True
+            notes.append(f"{why}; TAP failed too, so the local sky index filled in.")
 
     return {
         "candidates": one_release_per_week(cands),

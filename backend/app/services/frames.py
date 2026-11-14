@@ -22,9 +22,10 @@ from astropy.time import Time
 
 from ..config import NPIX, REF_MJD, settings
 from . import archive
-from .fitsio import FileReadError, file_header, sky_wcs, spectral_wcs
+from .archive import describe_key
+from .fitsio import FileReadError, NotOnAws, file_header, sky_wcs, spectral_wcs
 
-SEARCH_VERSION = "s2"  # s2: deep-survey collections added; older saved searches are ignored
+SEARCH_VERSION = "s3"  # s3: pmdec was read from pmra before; s2: deep-survey collections added
 
 
 def position_at(ra: float, dec: float, epoch_mjd: float, pmra: float | None, pmdec: float | None, mjd: float):
@@ -118,7 +119,10 @@ async def search(
     for c in cands:
         exposures.setdefault((c["week"], c["obs"], c["exp"]), []).append(c)
     groups = sorted(exposures.values(), key=lambda g: g[0]["mjd_start"])
-    kept = thin_evenly(groups, settings.max_exposures)
+    # IRSA names exactly the exposures that contain the position; the sky index proposes candidates,
+    # about half of which are dropped on checking, so it gets a bigger budget before the check
+    budget = settings.max_exposures * (3 if "index" in found["sources"] else 1)
+    kept = thin_evenly(groups, budget)
     todo = [c for g in kept for c in g]
 
     sem = asyncio.Semaphore(settings.http_concurrency)
@@ -127,10 +131,18 @@ async def search(
     async def one(c):
         nonlocal failed, done, last
         try:
-            info = await file_header(client, sem, c["id"])
-            f = await asyncio.to_thread(confirm, c, info, star)
-            if f:
-                frames.append(f)
+            for i, key in enumerate(c.get("ids") or [c["id"]]):  # sky-index candidates: newest version first
+                try:
+                    info = await file_header(client, sem, key)
+                except NotOnAws:
+                    if i == len(c.get("ids") or [c["id"]]) - 1:
+                        break  # in no version: this exposure does not exist on that detector
+                    continue
+                cand = {**c, **(describe_key(key) if key != c["id"] else {})}
+                f = await asyncio.to_thread(confirm, cand, info, star)
+                if f:
+                    frames.append(f)
+                break
         except (FileReadError, ValueError):
             failed += 1
         done += 1
@@ -140,6 +152,11 @@ async def search(
 
     await asyncio.gather(*(one(c) for c in todo))
     frames.sort(key=lambda f: (f["mjd"], f["det"]))
+    confirmed: dict[tuple, list] = {}
+    for f in frames:
+        confirmed.setdefault((f["week"], f["obs"], f["exp"]), []).append(f)
+    if len(confirmed) > settings.max_exposures:  # the sky index's bigger budget: cap again after checking
+        frames = [f for g in thin_evenly(list(confirmed.values()), settings.max_exposures) for f in g]
     by_release: dict[str, int] = {}
     for f in frames:
         by_release[f["release"]] = by_release.get(f["release"], 0) + 1
@@ -156,8 +173,11 @@ async def search(
         "complete": found["complete"] and failed == 0,
         "count": len(frames),
         "by_release": by_release,
-        "exposures_available": len(groups),
-        "exposures_kept": len(kept),
+        # sky-index candidates include ones that turn out not to contain the position: estimate the real number
+        "exposures_available": (
+            round(len(confirmed) * len(groups) / max(1, len(kept))) if "index" in found["sources"] else len(groups)
+        ),
+        "exposures_kept": len({(f["week"], f["obs"], f["exp"]) for f in frames}),
         "files_failed": failed,
         "frames": frames,
         "errors": found["errors"],
