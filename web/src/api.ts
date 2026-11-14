@@ -8,7 +8,7 @@ export interface Frame {
   x: number; y: number; lambda: number; dlambda: number; north: number;
 }
 export interface Featured { slug: string; name: string; kind: string; blurb: string; note?: string }
-export interface FindResult { frames: Frame[]; source: 'irsa' | 'index'; indexed: number; folders: number; stamp: string; observations: { available: number; checked: number }; failed: number }
+export interface FindResult { frames: Frame[]; source: 'irsa' | 'index' | 'both'; indexed: number; folders: number; stamp: string; observations: { available: number; checked: number }; failed: number }
 export interface FindProgress { stage: string; done: number; total: number; frames: number }
 export interface Status { irsa: boolean; coverage: { folders: number; indexed: number; observations: number } }
 

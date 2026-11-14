@@ -38,7 +38,10 @@ function json(res: http.ServerResponse, code: number, body: unknown) {
 }
 
 const numParam = (u: URL, k: string, lo: number, hi: number) => {
-  const v = Number(u.searchParams.get(k));
+  const raw = u.searchParams.get(k);
+  // a missing or empty value is an error, not 0 (Number('') === 0 would start a search at RA 0, Dec 0)
+  if (raw === null || raw.trim() === '') throw new Error(`missing ${k}`);
+  const v = Number(raw);
   if (!Number.isFinite(v) || v < lo || v > hi) throw new Error(`bad ${k}`);
   return v;
 };
@@ -181,7 +184,8 @@ function serveStatic(u: URL, res: http.ServerResponse) {
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html');
   if (!fs.existsSync(file)) { res.writeHead(503, { 'Content-Type': 'text/plain' }); return res.end('Web app not built yet: run npm run build'); }
   const ext = path.extname(file);
-  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=300' });
+  // app.js / app.css keep the same names across builds, so browsers must re-check them (a stale stylesheet broke the sky view)
+  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ['.html', '.js', '.css'].includes(ext) ? 'no-cache' : 'public, max-age=300' });
   fs.createReadStream(file).pipe(res);
 }
 

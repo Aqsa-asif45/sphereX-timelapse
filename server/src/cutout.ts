@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CACHE, NPIX } from './config.js';
 import type { FrameRec } from './finder.js';
-import { flagsDataStart } from './layout.js';
+import { CompressedFlags, flagsDataStart } from './layout.js';
 import { getRange, PRIO } from './net.js';
 import { skyToPix, tanToSky } from './wcs.js';
 
@@ -59,7 +59,8 @@ export async function rawPixels(fr: FrameRec, x: number, y: number, r: number) {
 /** Cutouts being made right now, by cache file: a second request for the same one waits for it. */
 const making = new Map<string, Promise<Cutout>>();
 const cutoutFile = (fr: FrameRec, ra: number, dec: number, n: number, scale: number, withFlags: boolean) =>
-  path.join(dir, crypto.createHash('sha1').update(`${fr.key}|${ra.toFixed(6)}|${dec.toFixed(6)}|${n}|${scale}|${withFlags ? 1 : 0}|L3`).digest('hex') + '.bin');
+  // F2: flag cutouts made before compressed (DR1/QR3) FLAGS were recognised held garbage, so they are not reused
+  path.join(dir, crypto.createHash('sha1').update(`${fr.key}|${ra.toFixed(6)}|${dec.toFixed(6)}|${n}|${scale}|${withFlags ? 'F2' : 0}|L3`).digest('hex') + '.bin');
 
 /** Already on disk? (Used to skip work when preparing a whole view.) */
 export const cutoutCached = (fr: FrameRec, ra: number, dec: number, n: number, scale: number, withFlags: boolean) => fs.existsSync(cutoutFile(fr, ra, dec, n, scale, withFlags));
@@ -97,7 +98,8 @@ async function makeCutout(fr: FrameRec, ra: number, dec: number, n: number, scal
   if (x0 <= x1 && y0 <= y1) {
     const [rows, frows] = await Promise.all([
       have ? Promise.resolve(null) : readBlock(fr.key, fr.data, 4, x0, x1, y0, y1, prio),
-      withFlags ? flagsDataStart(fr.key, fr.data, prio).then((at) => readBlock(fr.key, at, 4, x0, x1, y0, y1, prio)) : Promise.resolve(null),
+      // compressed FLAGS (DR1/QR3) are left as -1 = "no flag information", never read as raw bytes
+      withFlags ? flagsDataStart(fr.key, fr.data, prio).then((at) => readBlock(fr.key, at, 4, x0, x1, y0, y1, prio)).catch((e) => (e instanceof CompressedFlags ? null : Promise.reject(e))) : Promise.resolve(null),
     ]);
     const w = x1 - x0 + 1, h = y1 - y0 + 1;
     const block = new Float32Array(w * h);

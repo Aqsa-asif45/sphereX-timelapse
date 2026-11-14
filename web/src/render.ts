@@ -123,6 +123,36 @@ export function paintRgb(p: Uint8ClampedArray, o: number, r: Float32Array | null
   }
 }
 
+/**
+ * Catmull-Rom bicubic upscale of an RGBA image by a whole factor k, for display only: sharp edges without
+ * the blocks of nearest-neighbour or the blur of bilinear. Separable (two passes), edges clamped, output
+ * clamped to 0–255 (so the slight overshoot of the cubic never wraps). The measured data are not touched.
+ */
+export function upscaleBicubic(src: Uint8ClampedArray, w: number, h: number, k: number): Uint8ClampedArray {
+  const W = w * k, H = h * k, out = new Uint8ClampedArray(W * H * 4);
+  const taps = (n: number, N: number) => {
+    const idx = new Int32Array(N * 4), wt = new Float32Array(N * 4);
+    for (let I = 0; I < N; I++) {
+      const u = (I + 0.5) / k - 0.5, i0 = Math.floor(u), t = u - i0, t2 = t * t, t3 = t2 * t;
+      const c = [(-t3 + 2 * t2 - t) / 2, (3 * t3 - 5 * t2 + 2) / 2, (-3 * t3 + 4 * t2 + t) / 2, (t3 - t2) / 2];
+      for (let m = 0; m < 4; m++) { idx[I * 4 + m] = Math.min(n - 1, Math.max(0, i0 - 1 + m)); wt[I * 4 + m] = c[m]; }
+    }
+    return { idx, wt };
+  };
+  const tx = taps(w, W), ty = taps(h, H), tmp = new Float32Array(W * h * 3);
+  for (let j = 0; j < h; j++) for (let I = 0; I < W; I++) {
+    let r = 0, g = 0, b = 0;
+    for (let m = 0; m < 4; m++) { const s = (j * w + tx.idx[I * 4 + m]) * 4, q = tx.wt[I * 4 + m]; r += q * src[s]; g += q * src[s + 1]; b += q * src[s + 2]; }
+    const o = (j * W + I) * 3; tmp[o] = r; tmp[o + 1] = g; tmp[o + 2] = b;
+  }
+  for (let J = 0; J < H; J++) for (let I = 0; I < W; I++) {
+    let r = 0, g = 0, b = 0;
+    for (let m = 0; m < 4; m++) { const s = (ty.idx[J * 4 + m] * W + I) * 3, q = ty.wt[J * 4 + m]; r += q * tmp[s]; g += q * tmp[s + 1]; b += q * tmp[s + 2]; }
+    const o = (J * W + I) * 4; out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = 255;
+  }
+  return out;
+}
+
 /** Tint pixels flagged bad (alpha = fraction of frames flagged). */
 export function paintBad(p: Uint8ClampedArray, o: number, frac: Float32Array, n: number, w: number) {
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {

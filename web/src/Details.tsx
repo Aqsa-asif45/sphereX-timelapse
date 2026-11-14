@@ -231,7 +231,7 @@ export function Details(p: Props) {
           <dl class="kv">
             <dt>Exposures</dt><dd class="num">{result.frames.length} in {visits.length} visit{visits.length === 1 ? '' : 's'}</dd>
             <dt>Loaded</dt><dd class="num">{store.loaded}{store.failed ? ` (${store.failed} failed)` : ''}</dd>
-            <dt>Found via</dt><dd>{result.source === 'irsa' ? "IRSA's archive search" : 'local sky index (AWS)'}</dd>
+            <dt>Found via</dt><dd>{result.source === 'irsa' ? "IRSA's archive search" : result.source === 'both' ? "IRSA's archive search + local sky index" : 'local sky index (AWS)'}</dd>
             {result.source === 'index' && <><dt>Index covers</dt><dd class="num">{result.indexed} of {result.folders} weeks</dd></>}
             {result.observations?.available > result.observations?.checked && <><dt>Sampled</dt><dd class="num">{result.observations.checked} of {result.observations.available} exposures</dd></>}
             {result.failed > 0 && <><dt>Not reached</dt><dd class="num">{result.failed} (network)</dd></>}

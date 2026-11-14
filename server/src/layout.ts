@@ -158,6 +158,9 @@ export async function readWcsCards(key: string, version: string, kind: 'coarse' 
   return { h: parseCards(img.text), data: prim.size + img.size };
 }
 
+/** DR1/QR3 (pipeline v27) store FLAGS tile-compressed (RICE_1): its bytes are not plain int32 pixels. */
+export class CompressedFlags extends Error {}
+
 /** Where a file's FLAGS pixels start, given where its IMAGE pixels start (headers vary in length). */
 const flagsAt = new Map<string, number>();
 export async function flagsDataStart(key: string, imageData: number, prio: Prio): Promise<number> {
@@ -165,6 +168,7 @@ export async function flagsDataStart(key: string, imageData: number, prio: Prio)
   const hdrAt = imageData + blocks(2040 * 2040 * 4);
   const h = await readHeader(key, hdrAt, prio);
   if (!h.text.includes("'FLAGS")) throw new Error('FLAGS extension not where expected');
+  if (/ZIMAGE\s*=\s*T/.test(h.text)) throw new CompressedFlags(key);
   flagsAt.set(key, hdrAt + h.size);
   return hdrAt + h.size;
 }

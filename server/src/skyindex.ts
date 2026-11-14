@@ -54,14 +54,16 @@ function versionOrder(a: string, b: string) {
 
 // ── folders ────────────────────────────────────────────────────────────────
 
+/** format 3: also lists Data Releases (dr1, …), not only Quick Releases (qr2, qr3, …) */
+const FOLDERS_FORMAT = 3;
 let folderCache: { format?: number; at: number; folders: Folder[] } | null = null;
-try { folderCache = JSON.parse(fs.readFileSync(FOLDERS, 'utf8')); if (folderCache?.format !== 2) folderCache = null; } catch { /* none yet */ }
+try { folderCache = JSON.parse(fs.readFileSync(FOLDERS, 'utf8')); if (folderCache?.format !== FOLDERS_FORMAT) folderCache = null; } catch { /* none yet */ }
 
 /** All weeks across releases with their versions and detectors; refreshed at most daily (data arrive weekly). */
 export async function folders(refresh = false): Promise<Folder[]> {
   if (folderCache && !refresh && Date.now() - folderCache.at < 86_400_000) return folderCache.folders;
   const releases = new Set(RELEASES);
-  try { for (const p of (await list('', { delimiter: true })).prefixes) if (/^qr\d+\/$/.test(p)) releases.add(p.slice(0, -1)); } catch { /* keep configured list */ }
+  try { for (const p of (await list('', { delimiter: true })).prefixes) if (/^(?:qr|dr)\d+\/$/.test(p)) releases.add(p.slice(0, -1)); } catch { /* keep configured list */ }
   const out: Folder[] = [];
   for (const release of [...releases].sort()) {
     const names = (await list(`${release}/level2/`, { delimiter: true })).prefixes.map((p) => p.split('/')[2]).filter(Boolean);
@@ -76,10 +78,25 @@ export async function folders(refresh = false): Promise<Folder[]> {
     }));
   }
   out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.release.localeCompare(b.release)));
-  folderCache = { format: 2, at: Date.now(), folders: out };
+  folderCache = { format: FOLDERS_FORMAT, at: Date.now(), folders: out };
   fs.mkdirSync(DATA, { recursive: true });
   fs.writeFileSync(FOLDERS, JSON.stringify(folderCache));
   return out;
+}
+
+/**
+ * A week can be in several releases: DR1 reprocesses QR2's first year, and QR3 re-did 2026 weeks
+ * 20–29. Every exposure must be used once, from the best release: an official Data Release over a
+ * Quick Release, then the newer release.
+ */
+export const releaseRank = (r: string) => { const m = /^(dr|qr)(\d+)$/.exec(r); return m ? (m[1] === 'dr' ? 1000 : 0) + Number(m[2]) : -1; };
+
+/** Weeks by name, each with its releases best first. */
+export function weeksOf(all: Folder[]): Map<string, Folder[]> {
+  const by = new Map<string, Folder[]>();
+  for (const f of all) (by.get(f.name) ?? by.set(f.name, []).get(f.name)!).push(f);
+  for (const l of by.values()) l.sort((a, b) => releaseRank(b.release) - releaseRank(a.release));
+  return by;
 }
 
 /** Approximate mid-date of a folder from its name (ISO week), as MJD. Good to a few days. */
@@ -177,11 +194,15 @@ export async function indexFolder(f: Folder, prio: Prio = PRIO.background, onPro
   return x;
 }
 
-/** How much of the sky history is indexed. */
+/** How much of the sky history is indexed: distinct weeks, counting a week once whichever release indexes it. */
 export async function coverage() {
-  const all = await folders();
-  const done = all.filter((f) => loadIndex(f));
-  return { folders: all.length, indexed: done.length, observations: done.reduce((n, f) => n + loadIndex(f)!.rows.length, 0) };
+  let indexed = 0, observations = 0;
+  const weeks = weeksOf(await folders());
+  for (const l of weeks.values()) {
+    const f = l.find((x) => loadIndex(x));
+    if (f) { indexed++; observations += loadIndex(f)!.rows.length; }
+  }
+  return { folders: weeks.size, indexed, observations };
 }
 
 export { pad4 };

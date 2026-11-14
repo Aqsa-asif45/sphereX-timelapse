@@ -87,7 +87,8 @@ export function Explore({ search, nonce, featured, irsa }: { search: string; non
 
   const n = sizeFor(st.fov);
   const center = useMemo(() => (target ? positionAt(target, REF_MJD) : null), [target]);
-  const [display, setDisplay] = useState<Display>({ ring: true, gaia: false, wise: false, bad: false, smooth: false, contrast: 25 });
+  // smooth = clear display (bicubic upscaling) by default; untick for exact SPHEREx pixels
+  const [display, setDisplay] = useState<Display>({ ring: true, gaia: false, wise: false, bad: false, smooth: true, contrast: 25 });
   const store = useStore(result, center, n, display.bad);
   const visits = useMemo(() => (result ? groupVisits(result.frames) : []), [result]);
   const nv = visits.length;
@@ -408,7 +409,7 @@ export function Explore({ search, nonce, featured, irsa }: { search: string; non
               <ul>
                 <li>A tiny patch of sky around <b>{target.name}</b>, {st.fov}′ across ({moon(st.fov)}), photographed in infrared light by NASA's <b>SPHEREx</b> telescope.</li>
                 <li>{canCompare && A !== B ? <>It is <b>blinking between two visits</b>, {fmtGap(Math.abs(visits[A].mjd - visits[B].mjd))} apart. Anything that jumps is moving across the sky; anything that brightens or fades is changing.</> : !canCompare ? <>SPHEREx has visited this spot only once so far, so there is nothing to compare yet.</> : <>Visits A and B are set to the same visit, so nothing changes. Pick two different visits below the image.</>}</li>
-                <li>Each square is one real SPHEREx pixel (6″ of sky). Dark holes inside the brightest stars are pixels too bright to measure. We never fill them in.</li>
+                <li>{display.smooth ? 'The picture is smoothed for display (each real SPHEREx pixel covers 6″ of sky; untick Clear display under Display to see them as squares).' : 'Each square is one real SPHEREx pixel (6″ of sky).'} Dark holes inside the brightest stars are pixels too bright to measure. We never fill them in.</li>
                 <li>The <b class="amber-t">amber ring</b> marks where {target.name} should be on each date.</li>
               </ul>
               <div class="row"><button class="btn primary" onClick={() => { closeHelp(); setTour(true); }}>Take the 30-second tour</button><button class="btn" onClick={closeHelp}>Got it</button></div>
@@ -550,7 +551,7 @@ function DisplayMenu({ display, setDisplay, err, loadingCats }: { display: Displ
           {err && <p class="note warn-t">{err}</p>}
           <p class="menu-h">Picture</p>
           <label class="range">Contrast<input type="range" min={4} max={200} step={1} value={display.contrast} onInput={(e) => { const v = +(e.target as HTMLInputElement).value; setDisplay((d) => ({ ...d, contrast: v })); }} /></label>
-          <label class="check"><input type="checkbox" checked={display.smooth} onChange={tog('smooth')} />Smooth pixels <span class="sub">(blends neighbours; data unchanged)</span></label>
+          <label class="check"><input type="checkbox" checked={display.smooth} onChange={tog('smooth')} />Clear display <span class="sub">(bicubic upscaling for display; untick for exact SPHEREx pixels; data unchanged)</span></label>
         </div>
       )}
     </div>

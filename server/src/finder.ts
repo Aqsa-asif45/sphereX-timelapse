@@ -12,7 +12,7 @@ import { CACHE, DATA, IRSA_TAP, NPIX } from './config.js';
 import { blocks, endOffset, num, parseCards } from './fits.js';
 import { cachedLayout, layoutFor, readWcsCards, type Layout } from './layout.js';
 import { fetchText, getTail, NotFound, PRIO } from './net.js';
-import { folders, keyFor, loadIndex, versionsWith, type Folder } from './skyindex.js';
+import { folders, keyFor, loadIndex, versionsWith, weeksOf, type Folder } from './skyindex.js';
 import { northAngle, skyToPix, skyToTan, wcsFromHeader, type Wcs } from './wcs.js';
 
 export interface Frame {
@@ -183,11 +183,17 @@ export async function irsaReachable(): Promise<boolean> {
   return irsaOk;
 }
 
-/** Ask IRSA which files cover the position. Returns S3 keys. (Only used when IRSA is reachable.) */
+/**
+ * Ask IRSA which files cover the position. Returns S3 keys. (Only used when IRSA is reachable.)
+ * IRSA's URIs look like `ibe/data/spherex/dr1/level2/<week>/<version>/<det>/<file>.fits`; the part
+ * from the release on is the AWS key. An answer that is not the expected CSV is an error, never "no files".
+ */
 async function irsaKeys(ra: number, dec: number): Promise<string[]> {
   const q = `SELECT a.uri FROM spherex.artifact a JOIN spherex.plane p ON a.planeid = p.planeid WHERE 1 = CONTAINS(POINT('ICRS', ${ra}, ${dec}), p.poly)`;
   const t = await fetchText(`${IRSA_TAP}?${new URLSearchParams({ QUERY: q, LANG: 'ADQL', FORMAT: 'csv' })}`, { timeoutMs: 30_000 });
-  return t.split(/\r?\n/).slice(1).map((l) => l.replace(/"/g, '').trim()).filter((u) => u.includes('/level2/')).map((u) => u.slice(u.indexOf('qr')));
+  const lines = t.split(/\r?\n/);
+  if (lines[0].replace(/"/g, '').trim() !== 'uri') throw new Error('IRSA answered with something other than a file list');
+  return lines.slice(1).map((l) => /((?:qr|dr)\d+\/level2\/[^"\s]+)/.exec(l)?.[1]).filter((k): k is string => !!k);
 }
 
 // ── the finder ─────────────────────────────────────────────────────────────
@@ -204,7 +210,8 @@ export const MAX_EXPOSURES = 400;
 
 export interface FindProgress { stage: string; done: number; total: number; frames: number }
 export interface FindResult {
-  frames: FrameRec[]; source: 'irsa' | 'index'; indexed: number; folders: number;
+  /** where the candidate files came from; `indexed` / `folders` count distinct weeks */
+  frames: FrameRec[]; source: 'irsa' | 'index' | 'both'; indexed: number; folders: number;
   /** changes whenever a week, a processing version or an index is added: invalidates cached searches */
   stamp: string;
   observations: { available: number; checked: number }; failed: number;
@@ -215,7 +222,10 @@ const frameCacheDir = path.join(CACHE, 'frames');
 export async function findFrames(ra: number, dec: number, onProgress?: (p: FindProgress) => void): Promise<FindResult> {
   const all = await folders();
   const indexed = all.filter((f) => loadIndex(f));
-  const stamp = `${all.length}/${all.reduce((n, f) => n + f.versions.length, 0)}/${indexed.length}`;
+  const weeks = weeksOf(all);
+  const indexedWeeks = [...weeks.values()].filter((l) => l.some((f) => loadIndex(f))).length;
+  // w2: searches made before one-release-per-week (and DR1) are not reused
+  const stamp = `w2/${all.length}/${all.reduce((n, f) => n + f.versions.length, 0)}/${indexed.length}`;
   const cacheKey = `${ra.toFixed(5)}_${dec.toFixed(5)}`;
   const cacheFile = path.join(frameCacheDir, cacheKey + '.json');
   try {
@@ -227,32 +237,36 @@ export async function findFrames(ra: number, dec: number, onProgress?: (p: FindP
   // 1. candidate observations: (folder, obs, patch); patch 1–3 = detector pair (1,4) (2,5) (3,6)
   /** dets: the detectors IRSA lists for this exposure (index candidates: unknown) */
   type Cand = { f: Folder; obs: number; exp: number; patch: 1 | 2 | 3; dets?: number[] };
+  // Each week is read from ONE release (its best: see weeksOf), so no exposure appears twice.
+  // - best release indexed: the sky index (complete: built from the AWS file listing);
+  // - otherwise IRSA, whose catalogue lists the current releases (DR1, QR3) but no longer QR2;
+  // - IRSA unreachable or failing: the best release of that week that does have an index.
   const cands: Cand[] = [];
-  let source: 'irsa' | 'index' = 'index';
-  if (await irsaReachable()) {
+  const best = [...weeks.values()].map((l) => l[0]);
+  let usedIrsa = false;
+  if (best.some((f) => !loadIndex(f)) && (await irsaReachable())) {
     try {
-      // IRSA may cite an older reprocessing of a week than the newest one on AWS, so match by
-      // release + week + exposure, and read the newest processing of that exposure
-      const byWeek = new Map(all.map((f) => [`${f.release}/${f.name}`, f]));
+      const want = new Map(best.filter((f) => !loadIndex(f)).map((f) => [`${f.release}/${f.name}`, f]));
       const byExp = new Map<string, Cand>();
       for (const k of await irsaKeys(ra, dec)) {
-        const m = k.match(/^(qr\d+)\/level2\/([^/]+)\/[^/]+\/\d\/level2_.*?_(\d{4})_(\d)D(\d)_/);
-        const f = m && byWeek.get(`${m[1]}/${m[2]}`);
-        if (!f) continue;
+        const m = k.match(/^((?:qr|dr)\d+)\/level2\/([^/]+)\/[^/]+\/\d\/level2_.*?_(\d{4})_(\d)D(\d)_/);
+        const f = m && want.get(`${m[1]}/${m[2]}`);
+        if (!f) continue; // a week read from the index, or not from this release
         const det = +m![5], patch = (((det - 1) % 3) + 1) as 1 | 2 | 3, id = `${f.release}/${f.name}/${+m![3]}.${+m![4]}.${patch}`;
         const c = byExp.get(id) ?? byExp.set(id, { f, obs: +m![3], exp: +m![4], patch, dets: [] }).get(id)!;
         if (!c.dets!.includes(det)) c.dets!.push(det);
       }
       cands.push(...byExp.values());
-      cands.sort((a, b) => (a.f.name < b.f.name ? -1 : a.f.name > b.f.name ? 1 : a.obs - b.obs || a.exp - b.exp));
-      source = 'irsa';
-    } catch { /* fall back to the index */ }
+      usedIrsa = true;
+    } catch { /* those weeks fall back to an indexed release */ }
   }
-  if (source === 'index') {
-    const fp = indexed.length ? await focalPlane(indexed) : null;
+  const viaIndex = [...weeks.values()].map((l) => (loadIndex(l[0]) ? l[0] : usedIrsa ? undefined : l.find((f) => loadIndex(f)))).filter((f): f is Folder => !!f);
+  const source: FindResult['source'] = usedIrsa ? (viaIndex.length ? 'both' : 'irsa') : 'index';
+  if (viaIndex.length) {
+    const fp = await focalPlane(indexed);
     // each patch's centre, in detector-1 pixels relative to detector 1's reference pixel
     const offs: Array<[number, number]> = [[0, 0], fp?.d2 ?? [NaN, NaN], fp?.d3 ?? [NaN, NaN]];
-    for (const f of indexed) {
+    for (const f of viaIndex) {
       const has = [1, 2, 3].map((p) => versionsWith(f, p).length + versionsWith(f, p + 3).length > 0);
       for (const r of loadIndex(f)!.rows) {
         const [obs, exp, ra0, dec0, p11, p12, p21, p22, ref] = r;
@@ -273,9 +287,10 @@ export async function findFrames(ra: number, dec: number, onProgress?: (p: FindP
   //    observations, whose four stepped exposures may or may not all contain the position
   let jobs: Array<{ f: Folder; obs: number; exp: number; det: number; dets?: number[] }> = [];
   const seen = new Set<string>();
+  cands.sort((a, b) => (a.f.name < b.f.name ? -1 : a.f.name > b.f.name ? 1 : a.obs - b.obs || a.exp - b.exp));
   for (const c of cands) for (let exp = 1; exp <= 4; exp++) {
     const id = `${c.f.release}/${c.f.name}/${c.obs}.${exp}.${c.patch}`;
-    if (source === 'irsa' && exp !== c.exp) continue;
+    if (c.dets && exp !== c.exp) continue; // IRSA named this exact exposure
     if (!seen.has(id)) { seen.add(id); jobs.push({ f: c.f, obs: c.obs, exp, det: c.patch, dets: c.dets }); }
   }
   // IRSA names exactly the exposures that contain the position; the index proposes candidates,
@@ -323,9 +338,12 @@ export async function findFrames(ra: number, dec: number, onProgress?: (p: FindP
   if (exposures.length > MAX_EXPOSURES) { exposures = thin(exposures, MAX_EXPOSURES); frames = exposures.flat(); }
   // how many exposures contain the position: counted, or estimated when candidates had to be thinned
   const available = preThinned ? Math.round((found * candidates) / preCap) : found;
-  const out: FindResult = { frames, source, indexed: indexed.length, folders: all.length, stamp, observations: { available, checked: exposures.length }, failed };
-  fs.mkdirSync(frameCacheDir, { recursive: true });
-  if (!process.env.NO_FRAME_CACHE) fs.writeFileSync(cacheFile, JSON.stringify(out));
+  const out: FindResult = { frames, source, indexed: indexedWeeks, folders: weeks.size, stamp, observations: { available, checked: exposures.length }, failed };
+  // an empty answer is kept only for this request: it may be an archive hiccup, and caching it would hide the data for good
+  if (!process.env.NO_FRAME_CACHE && frames.length) {
+    fs.mkdirSync(frameCacheDir, { recursive: true });
+    fs.writeFileSync(cacheFile, JSON.stringify(out));
+  }
   return out;
 }
 

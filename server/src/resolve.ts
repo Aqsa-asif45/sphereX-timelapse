@@ -52,6 +52,8 @@ const SEXA = /^\s*([+-]?\d{1,3})[h:\s]\s*(\d{1,2})[m:\s]\s*(\d{1,2}(?:\.\d*)?)s?
 const DECI = /^\s*([+-]?\d+(?:\.\d+)?)\s*(?:°|d|deg)?\s*[,\s]\s*([+-]?\d+(?:\.\d+)?)\s*(?:°|d|deg)?\s*$/i;
 
 export function parseCoords(q: string): { ra: number; dec: number } | null {
+  // typographic minus signs and dashes (the app itself shows "−07°14′42″") mean minus
+  q = q.replace(/[−‐-―﹣－]/g, '-');
   let m = SEXA.exec(q);
   if (m) {
     const ra = (Math.abs(+m[1]) + +m[2] / 60 + +m[3] / 3600) * 15;

@@ -3,7 +3,7 @@
 import type { Frame, Target } from './api';
 import { BANDS, gridOffset, PIXEL_ARCSEC, positionAt } from './astro';
 import type { FrameStore } from './data';
-import { badFraction, combine, paintBad, paintDiff, paintHeat, paintRgb, stack, type FrameData } from './render';
+import { badFraction, combine, paintBad, paintDiff, paintHeat, paintRgb, stack, upscaleBicubic, type FrameData } from './render';
 
 export type Colours = 'all' | 'six' | 'rgb' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6';
 export const bandOf = (c: Colours) => (c[0] === 'd' ? +c[1] : 0);
@@ -67,6 +67,21 @@ export interface Overlay {
   compass?: boolean;
 }
 
+/** Upscaled frames are cached (blinking alternates a few scenes; panning and zooming redraw the same one). */
+const clearCache: Array<{ refs: unknown[]; key: string; canvas: OffscreenCanvas }> = [];
+function clearCanvas(panels: Panel[], im: ImageData, Wd: number, Hd: number, k: number, contrast: number): OffscreenCanvas {
+  const refs = panels.flatMap((p) => [p.data, p.rgb?.[0], p.rgb?.[1], p.rgb?.[2], p.bad]);
+  const key = `${Wd}x${Hd}|${k}|${contrast}`;
+  const hit = clearCache.find((c) => c.key === key && c.refs.length === refs.length && c.refs.every((r, i) => r === refs[i]));
+  if (hit) return hit.canvas;
+  const canvas = new OffscreenCanvas(Wd * k, Hd * k);
+  const up = k > 1 ? upscaleBicubic(im.data, Wd, Hd, k) : im.data;
+  canvas.getContext('2d')!.putImageData(new ImageData(up, Wd * k, Hd * k), 0, 0);
+  clearCache.unshift({ refs, key, canvas });
+  if (clearCache.length > 6) clearCache.pop();
+  return canvas;
+}
+
 /** Draw panels at `scale` CSS px per data pixel into ctx (already DPR-scaled); callers pick scale × DPR as a whole number so every pixel is an exact square. */
 export function drawScene(x: CanvasRenderingContext2D, panels: Panel[], n: number, scale: number, o: Overlay) {
   const { cols, rows } = gridOf(panels.length);
@@ -80,11 +95,18 @@ export function drawScene(x: CanvasRenderingContext2D, panels: Panel[], n: numbe
     else if (p.data) (p.kind === 'diff' ? paintDiff : paintHeat)(im.data, off, p.data, n, Wd, o.contrast);
     if (p.bad) paintBad(im.data, off, p.bad, n, Wd);
   });
-  const off = new OffscreenCanvas(Wd, Hd);
-  off.getContext('2d')!.putImageData(im, 0, 0);
-  x.imageSmoothingEnabled = !o.pixels;
-  x.imageSmoothingQuality = 'high';
-  x.drawImage(off, 0, 0, Wd * scale, Hd * scale);
+  if (o.pixels) {
+    const off = new OffscreenCanvas(Wd, Hd);
+    off.getContext('2d')!.putImageData(im, 0, 0);
+    x.imageSmoothingEnabled = false;
+    x.drawImage(off, 0, 0, Wd * scale, Hd * scale);
+  } else {
+    // clear display: bicubic upscale to about one image pixel per device pixel, then a light final resize
+    const k = Math.min(8, Math.max(1, Math.ceil(scale * (globalThis.devicePixelRatio || 1))));
+    x.imageSmoothingEnabled = true;
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(clearCanvas(panels, im, Wd, Hd, k, o.contrast), 0, 0, Wd * scale, Hd * scale);
+  }
 
   const c0 = (n - 1) / 2;
   const toPx = (ra: number, dec: number): [number, number] => { const g = gridOffset(o.center[0], o.center[1], ra, dec, PIXEL_ARCSEC); return [(c0 + g[0] + 0.5) * scale, (c0 + g[1] + 0.5) * scale]; };

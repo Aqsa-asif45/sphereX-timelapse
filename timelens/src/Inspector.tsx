@@ -146,7 +146,7 @@ export function Inspector(p: Props) {
           <h3>Where this comes from</h3>
           <dl class="kv">
             <dt>Images</dt><dd>NASA SPHEREx {releases && <span class="sub">({releases})</span>}</dd>
-            <dt>Found via</dt><dd>{result.source === 'irsa' ? "IRSA's archive search" : 'TimeLens sky index of the AWS archive'}</dd>
+            <dt>Found via</dt><dd>{result.source === 'irsa' ? "IRSA's archive search" : result.source === 'both' ? "IRSA's archive search + TimeLens sky index" : 'TimeLens sky index of the AWS archive'}</dd>
             {result.source === 'index' && <><dt>Index</dt><dd class="mono">{result.indexed} of {result.folders} weeks</dd></>}
             {result.observations?.available > result.observations?.checked && <><dt>Sampled</dt><dd class="mono">{result.observations.checked} of {result.observations.available} observations</dd></>}
             {result.failed > 0 && <><dt>Not reached</dt><dd class="mono">{result.failed} (network)</dd></>}

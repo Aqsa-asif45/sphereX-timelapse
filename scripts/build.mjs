@@ -41,10 +41,14 @@ const web = {
   jsx: 'automatic', jsxImportSource: 'preact', logLevel: 'info', absWorkingDir: root, plugins: [copyStatic], loader: { '.css': 'css' },
 };
 
+// Framer Motion is a React library: run it on Preact's compatibility layer
+const reactOnPreact = { react: 'preact/compat', 'react-dom': 'preact/compat', 'react/jsx-runtime': 'preact/jsx-runtime' };
+
 const lens = {
   entryPoints: { app: 'timelens/src/main.tsx' },
   outdir: path.join(out, 'timelens'), bundle: true, platform: 'browser', format: 'esm', target: 'es2020', minify: !watch, sourcemap: true,
   jsx: 'automatic', jsxImportSource: 'preact', logLevel: 'info', absWorkingDir: root, plugins: [copyLens], loader: { '.css': 'css' },
+  alias: reactOnPreact,
 };
 
 if (!watch) {
