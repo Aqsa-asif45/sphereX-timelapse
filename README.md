@@ -10,6 +10,31 @@ nothing is simulated, and pixels SPHEREx left blank stay blank.
 
 ![Home: the hero over the SPHEREx all-sky map in false colour](docs/screenshots/home.jpg)
 
+## Summary
+
+**The challenge.** SPHEREx returns to every part of the sky about twice a year, so its images hold a record of
+what changes: stars that move, stars that brighten and fade, and faint objects such as nearby brown dwarfs.
+That record is spread over hundreds of large files per spot in NASA's archive, with no simple way to compare
+them.
+
+**What TimeLens does.** Type a star's name or sky coordinates. TimeLens finds every SPHEREx exposure of that
+spot, cuts a small, aligned piece out of each original file, and groups the exposures into visits. You can then:
+
+- **see motion** by blinking or playing the visits, or subtracting one from another;
+- **see brightness change** across visits and read the star's spectrum over the 102 colours;
+- **let it hunt for movers**, with every find checked against the Gaia DR3 catalogue and kept as a candidate
+  for you to review, never announced as a discovery.
+
+**How it stays trustworthy.** Every picture is a real SPHEREx exposure, cut from the original file at SPHEREx's
+own pixel size. Pixels SPHEREx flagged or left blank are shown as such and never filled in. Each number links
+back to its source (release, file, pipeline version), and the app is checked against reference values. For
+example, Barnard's Star should move about 10.4″ a year, matching Gaia. See
+[docs/SCIENCE_RULES.md](docs/SCIENCE_RULES.md).
+
+**Who it is for.** Students, amateur astronomers and anyone curious: no account, download or astronomy
+software is needed. Every view has a link that opens exactly what you see, so a find can be shared and checked
+by someone else.
+
 ## Screenshots
 
 | | |
