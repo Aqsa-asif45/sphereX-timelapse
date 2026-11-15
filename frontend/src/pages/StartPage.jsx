@@ -246,7 +246,7 @@ export default function StartPage() {
                   : 'border-line-2 bg-bg-2/60 text-ink-2 hover:text-ink'
               }`}
             >
-              <span className="num text-ink-3">{i + 1}</span> {s.short}
+              {s.short}
             </button>
           ))}
         </div>

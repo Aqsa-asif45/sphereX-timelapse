@@ -39,20 +39,12 @@ export default function Hero() {
             <span aria-hidden="true">→</span>
           </Link>
         </motion.div>
-        <motion.div variants={rise} className="flex w-full max-w-xl flex-col gap-2">
-          <p className="text-sm text-ink-2">Or go straight to a star or a spot in the sky:</p>
-          <SearchBox big id="home-search" />
-        </motion.div>
+
         <motion.p variants={rise} className="text-sm">
-          <Link to="/about" className="text-focus underline underline-offset-2">
-            Methods and data
-          </Link>
+          
         </motion.p>
       </motion.div>
 
-      <p className="absolute right-4 bottom-3 max-w-[calc(100%-2rem)] text-right text-xs text-ink-2">
-        Backdrop: {BACKDROP_LABEL}, NASA/IPAC. For looking only.
-      </p>
     </section>
   )
 }
