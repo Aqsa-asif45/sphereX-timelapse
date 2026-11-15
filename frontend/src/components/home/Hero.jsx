@@ -1,10 +1,9 @@
 import { motion } from 'motion/react'
 import { Link } from 'react-router'
-import SearchBox from '../search/SearchBox'
 import { rise, stagger } from './motion'
 import SkyBackdrop, { BACKDROP_LABEL } from './SkyBackdrop'
 
-/** Full-screen hero over the real SPHEREx sky: name, a short intro, the Start button and a search (SH-2, SR-5). */
+/** Full-screen hero over the real SPHEREx sky: name, a short intro and the Start button (SH-2); search is on /start. */
 export default function Hero() {
   return (
     <section className="relative isolate flex min-h-dvh items-center overflow-hidden">
@@ -39,12 +38,12 @@ export default function Hero() {
             <span aria-hidden="true">→</span>
           </Link>
         </motion.div>
-
-        <motion.p variants={rise} className="text-sm">
-          
-        </motion.p>
       </motion.div>
 
+      {/* science rule: the all-sky map is for looking, never for measuring */}
+      <p className="absolute right-4 bottom-3 max-w-[calc(100%-2rem)] text-right text-xs text-ink-2">
+        Backdrop: {BACKDROP_LABEL}, NASA/IPAC. For looking only.
+      </p>
     </section>
   )
 }

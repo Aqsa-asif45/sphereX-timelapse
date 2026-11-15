@@ -15,6 +15,16 @@ describe('saturated star cores', () => {
     expect(sat[0 * N + 6]).toBe(0)
   })
 
+  it('marks blanks on a star rim (half the neighbours bright) but not a blank at the detector edge', () => {
+    const d = sky()
+    for (let j = 1; j <= 5; j++) for (let i = 1; i <= 3; i++) d[j * N + i] = 5000 // star, left part
+    for (let j = 0; j < N; j++) for (let i = 5; i < N; i++) d[j * N + i] = NaN // off the detector (right side)
+    d[3 * N + 4] = NaN // a blank on the star's rim, next to the off-detector area
+    const sat = saturatedCores(d, N, (v) => v > 100)
+    expect(sat[3 * N + 4]).toBe(1)
+    expect(sat[3 * N + 6]).toBe(0) // the off-detector area stays "no data"
+  })
+
   it('fills a core several pixels wide, from the edge inwards', () => {
     const d = sky()
     for (let j = 1; j <= 5; j++) for (let i = 1; i <= 5; i++) d[j * N + i] = 5000

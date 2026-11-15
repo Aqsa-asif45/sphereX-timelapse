@@ -162,7 +162,9 @@ export function saturatedCores(data, n, isBright) {
             }
           }
         }
-        if (bright >= 2 && bright === real) {
+        // at least half of the real neighbours bright: also catches blanks on a star's rim, where some
+        // neighbours are only moderately bright (a stricter "all bright" rule left dark dots there)
+        if (bright >= 2 && bright * 2 >= real) {
           sat[k] = 1
           changed = true
         }
@@ -174,7 +176,7 @@ export function saturatedCores(data, n, isBright) {
 
 /** Paint a σ-map with the inferno colour map into RGBA `p` (row width w), starting at pixel offset o. */
 export function paintHeat(p, o, data, n, w, contrast, stretch) {
-  const sat = saturatedCores(data, n, (v) => level(v, contrast, stretch) >= 0.8)
+  const sat = saturatedCores(data, n, (v) => level(v, contrast, stretch) >= 0.6)
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
       const v = data[j * n + i]

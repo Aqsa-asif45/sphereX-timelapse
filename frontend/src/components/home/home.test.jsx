@@ -55,24 +55,20 @@ afterEach(() => {
 })
 
 describe('Home', () => {
-  it('is the hero: headline, Start button to /start, search and the backdrop label (SH-2)', () => {
+  it('is the hero: headline, Start button to /start and the backdrop label (SH-2)', () => {
     renderAt('/')
     expect(screen.getByRole('heading', { level: 1, name: /find what moves/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /start your experience/i })).toHaveAttribute(
       'href',
       '/start',
     )
-    expect(screen.getByLabelText(/star name or sky coordinates/i)).toBeInTheDocument()
     expect(screen.getByText(/SPHEREx all-sky map in false colour/)).toBeInTheDocument()
+    expect(screen.getByText(/for looking only/i)).toBeInTheDocument()
   })
 
-  it('searching from the hero opens Explore (SR-5)', async () => {
+  it('keeps search on /start, not in the hero (SR-5)', () => {
     renderAt('/')
-    fireEvent.change(screen.getByLabelText(/star name or sky coordinates/i), {
-      target: { value: 'R Dra' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Explore the sky' }))
-    expect(await screen.findByTestId('where')).toHaveTextContent('/explore?q=R%20Dra')
+    expect(screen.queryByLabelText(/star name or sky coordinates/i)).not.toBeInTheDocument()
   })
 })
 
