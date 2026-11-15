@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+
+/* Theme "night-shift instrument": the sky image is the only bright thing; colour always carries meaning.
+   Use these as Tailwind classes: bg-bg, bg-panel, border-line, text-ink-2, text-time, ring-focus, rounded-ctl ... */
+@theme {
+  --color-bg: #07090e;
+  --color-bg-2: #0b0f16;
+  --color-panel: #0f141c;
+  --color-raised: #151c27;
+  --color-hover: #1b2431;
+  --color-line: #1f2835; /* decorative lines */
+  --color-line-2: #2a3546;
+  --color-ctl: #5b6b82; /* control borders: at least 3:1 on every surface */
+  --color-ink: #edf1f6; /* text */
+  --color-ink-2: #a9b4c3;
+  --color-ink-3: #8592a5; /* muted text: at least 4.5:1 on every surface */
+  --color-time: #ffb84d; /* amber: time, visit A, target ring, main actions */
+  --color-earlier: #6ec3ff; /* blue: visit B */
+  --color-focus: #5fd4e3; /* cyan: focus rings, links, selected controls */
+  --color-ok: #4fd18b;
+  --color-danger: #ff6b6b;
+
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --radius-ctl: 6px;
+  --radius-panel: 10px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+  }
+  /* a visible focus ring everywhere, for keyboard users only */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-focus;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}

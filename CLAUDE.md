@@ -2,39 +2,32 @@
 
 NASA Space Apps 2026, challenge "Planet X and SPHEREx": a public web tool that shows how the infrared sky changes over time, using real NASA SPHEREx data, so anyone can spot things that move or change.
 
-Read `docs/PROGRESS.md` (current state) and `docs/PLAN.md` (phases) before working. Research facts about the archive are in `docs/RESEARCH.md`; decisions in `docs/DECISIONS.md`.
+Read `docs/PROGRESS.md` (current state) before working. Science rules: `docs/SCIENCE_RULES.md`. Archive facts: `docs/RESEARCH.md`. Decisions: `docs/DECISIONS.md`.
 
-## Two generations, side by side
+## Stack
 
-| | v1 (live, verified) | v2 (being built, phase by phase) |
+| Part | Folder | Built with |
 |---|---|---|
-| Backend | Node 20 + TypeScript, no framework (`server/src`) | Python 3.13 + FastAPI (`backend/`) |
-| Frontend | Preact + esbuild: original viewer (`web/`, at `/`) and TimeLens (`timelens/`, at `/timelens/`) | React + TypeScript + Vite + Tailwind + shadcn/ui (`app/`) |
+| Backend (API) | `backend/` | Python 3.11+, FastAPI, Uvicorn, httpx, Astropy, NumPy, reproject, Pillow |
+| Frontend | `frontend/` | React 19 (JSX), Vite, Tailwind CSS 4, React Router, TanStack Query, Zustand, Motion; Canvas + Web Worker |
 
-v1 must keep working until v2 replaces it. v2 runs on its own ports and never edits v1 files.
+Data: IRSA SIA2 (search) → TAP (backup) → local sky index `backend/data/index/` (offline backup); pixels by byte-range reads from NASA's AWS copy; cache in `backend/data/cache/` (git-ignored).
 
 ## Run
 
-v1:
 ```
-npm install
-npm run build
-npm start            # http://localhost:5173 (PORT=… to change)
-```
-
-v2 (once scaffolded; see docs/PROGRESS.md for what exists):
-```
-backend:  python -m venv backend/.venv ; backend/.venv/Scripts/pip install -r backend/requirements.txt
-          backend/.venv/Scripts/python -m uvicorn app.main:app --app-dir backend --port 8010
-frontend: cd app ; npm install ; npm run dev     # http://localhost:5174, proxies /api to 8010
+backend:  python -m venv backend/.venv ; backend/.venv/Scripts/pip install -r backend/requirements-dev.txt
+          cd backend ; .venv/Scripts/python -m uvicorn app.main:app --port 8000
+frontend: cd frontend ; npm install ; npm run dev        # http://localhost:5173, forwards /api to 8000
+warm:     cd backend ; .venv/Scripts/python -m app.cli warm   # pre-build the 5 targets before a demo
 ```
 
 ## Test
 
-- v1: `npx tsc --noEmit -p .` and `npm run build`.
-- v2 backend: `backend/.venv/Scripts/python -m pytest backend/tests` (network tests are marked `network`).
-- v2 frontend: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` inside `app/`.
-- Every phase ends with a real-browser check (Playwright Chromium) at 390, 768, 1024 and 1440 px.
+- Backend: `backend/.venv/Scripts/python -m pytest backend/tests -m "not network"` (live tests: `-m network`, slow ones `-m slow`).
+- Lint: `backend/.venv/Scripts/python -m ruff check backend/app`.
+- Frontend (in `frontend/`): `npm test`, `npm run lint`, `npm run build`.
+- UI changes end with a real-browser check (Playwright Chromium) at 390, 768, 1024 and 1440 px.
 
 ## Science rules (non-negotiable)
 
@@ -46,6 +39,7 @@ frontend: cd app ; npm install ; npm run dev     # http://localhost:5174, proxie
 - HiPS PNGs and the all-sky cube are for visualisation and overview, never for time-domain comparison or measurements.
 - Brown dwarfs (WISE 0855, Epsilon Indi B) are not stars and are not in Gaia: say so.
 - Candidates are evidence, never discoveries.
+- Changing how cutouts are made: bump `CUTOUT_VERSION` (and `previews.VERSION`), then re-run `warm`.
 
 ## Working rules
 

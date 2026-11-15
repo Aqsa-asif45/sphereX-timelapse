@@ -1,30 +1,60 @@
-# Dependencies and build output
+# ── Dependencies and build output ────────────────
 node_modules/
 .venv/
+venv/
 dist/
+dist-ssr/
 build/
+*.tsbuildinfo
+*.local
+.vite/
+coverage/
 
-# Downloaded data and caches (rebuilt on demand)
+# ── Python (backend) ─────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# ── Downloaded data and caches (rebuilt on demand) ──
+# v1 cache at the repo root:
 data/cache/
 .cache/
-*.tsbuildinfo
-__pycache__/
-*.pyc
-.pytest_cache/
+# v2 backend cache. backend/data/index/ and the JSON files next to it ARE kept in git.
+backend/data/cache/
 
-# Logs
-*.log
+# ── Playwright browser tests ─────────────────────
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
-# Secrets
+# ── Secrets ──────────────────────────────────────
 .env
 .env.*
 !.env.example
 *.pem
 *.key
 
-# Local tool settings
-.claude/settings.local.json
+# ── Logs ─────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# OS / editor clutter
+# ── Editors and OS ───────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
 Thumbs.db
+Desktop.ini
 .DS_Store
+
+# ── Local Claude Code settings ───────────────────
+.claude/settings.local.json

@@ -1,23 +1,27 @@
 # Progress
 
-Current state, rewritten each session. Last update: 2026-11-14.
+Current state, rewritten each session. Last update: 2026-11-15.
 
 ## Done
-- **v1 (live, Node + Preact):** DR1 support and one-release-per-week search; empty results no longer cached; missing position rejected; typographic minus accepted; compressed DR1/QR3 flags treated as "no flag info" instead of garbage.
-- **v1 landing: the whole SPHEREx sky.** NASA's DR1 all-sky HiPS on a draggable Aladin Lite globe, four wavelength buttons (1.1, 2.1, 3.3, 4.6 µm), the five targets marked and clickable (fly to, then open their images).
-- **v2 Phase 1 preview (React + FastAPI, port 8010):** SIA2 search with TAP fill-in and full provenance; real IRSA cutouts read with Astropy (decompressed flags with the file's own names, variance, sky and spectral WCS); WebGL viewer with stretch, range, colour map and flag overlay; progressive results over SSE; typed events.
-- Docs: RESEARCH.md, PLAN.md, DECISIONS.md, CLAUDE.md, PRODUCT.md, DESIGN.md.
+- **One app:** Aqsa's build (FastAPI `backend/` + React `frontend/`) merged and kept; v1 and the `app/` scaffold removed (in git history). Merge not committed yet.
+- **Images:** exact pixel-overlap resampling (no more ringing); NASA's dead/cold/cosmic-ray pixels blanked; R Draconis split into 17 time steps instead of 2.
+- **Speed:** 24 AWS connections (cold search 763 s → 76 s); flags/noise only with Bad pixels (default view ~4× faster); IRSA check uses SIA2; previews one at a time, `no-cache`; the 5 targets pre-built with `app.cli warm`.
 
-## Verified
-- Backend tests: 29/29 (incl. DR1 and QR3 cutouts identical to NASA's original files: pixels, flags, target pixel, wavelength, time, units).
-- Frontend: typecheck, lint, 14/14 tests, build. Browser (Chromium): v2 at 390/768/1024/1440, no sideways scroll; v1 sky globe renders real SPHEREx tiles; each wavelength button fetches its intended cube frame; target buttons open the explorer.
-- v1 server API suite 73/73; data cross-checks vs Astropy, Gaia (ESA) and CatWISE.
+## Verified (2026-11-15)
+- Backend 67/67 offline tests; frontend 81/81 tests, lint, build; ruff clean on changed files.
+- Against NASA's original files with Astropy (20 exposures, 5 targets, DR1 + QR3, 6 detectors): target pixel ≤ 0.0007 px, wavelength ≤ 0.005 nm, time exact, raw pixels/flags/variance identical.
+- Search lists identical to IRSA SIA2 for Barnard, ε Indi B, WISE 0855, RW Aur (R Dra capped at 400 exposures by design).
+- Browser (Chromium): targets open in 3–6 s after `warm`; no sideways scroll at 390/768/1024/1440 px.
 
 ## Next
-- v2 Phases 2–8 (PLAN.md), paused after the 15 Nov hackathon deadline; v1 is the submission.
-- Commit and push today's work (not committed yet).
+- Commit the merge (maintainer's call), then push.
+- Spectra: ePSF photometry on detector pixels (aperture currently counts 7–12 whole pixels: 5–27% error for moving stars).
+- Overlays: exact gnomonic `gridOffset` (up to 1.7 px off at 30′ near the poles).
+- Wavelength-matched differences (same band can differ by up to 627 nm between visits).
 
 ## Known issues
-- Sky globe: on first load Aladin briefly requests its default (blank) cube frame, giving a few harmless 404s in the console.
-- v2: the "Skip to the image" link has no visible focus ring; IRSA's SIA2 is intermittently slow (TAP fill-in covers it).
-- Not tested: real phones, Safari/Firefox, screen readers, deployment.
+- IRSA SIA2 was returning 502 errors on 2026-11-15; searches then use the offline index (works, slower; reused 1 h).
+- The server answers slowly during a cold search (CPU work starves the event loop).
+- The hover hint box covers the bottom of the image and the scale bar.
+- `DESIGN.md` and `docs/PLAN.md` still describe the old v2 plan (TypeScript, `app/`).
+- Not tested: real phones, Safari/Firefox, screen readers, deployment, Gaia overlay (ESA unreachable from here).

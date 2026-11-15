@@ -1,2 +1,3 @@
-"""SPHEREx TimeLens v2 backend."""
-__version__ = "0.2.0"
+"""SPHEREx TimeLens backend."""
+
+__version__ = "0.1.0"
