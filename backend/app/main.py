@@ -15,10 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .config import USER_AGENT, settings
 from .routers import catalogs, cutouts, health, observations, pixels, previews, resolve, status, targets
+from .services.prebuilt import seed_cache
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # the five targets' pre-built 4' data (kept in git) into the cache, so a fresh clone is fast at once
+    await asyncio.to_thread(seed_cache)
     # one shared HTTP client for every call to NASA, IRSA and MAST
     app.state.http = httpx.AsyncClient(
         headers={"User-Agent": USER_AGENT},

@@ -47,6 +47,8 @@ cd backend
 .venv/Scripts/python -m app.cli warm   # optional: pre-build the 5 challenge targets for a fast demo
 ```
 
+The five challenge targets come **pre-built** at the default 4′ field (`backend/data/prebuilt/`, ~17 MB): the backend copies them into its cache on start-up, so they open in seconds on a fresh clone. Other fields and places are fetched from NASA the first time, then cached.
+
 No accounts, keys or secrets are needed. Settings (all optional) are listed in `.env.example`.
 
 ## Tests
