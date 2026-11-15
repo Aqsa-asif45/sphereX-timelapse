@@ -1,13 +1,13 @@
 import { Link } from 'react-router'
 
 const CREDITS = [
-  'SPHEREx: NASA/JPL-Caltech/IPAC, via the NASA/IPAC Infrared Science Archive (IRSA) and the AWS Open Data programme',
-  'Gaia DR3 (ESA/Gaia/DPAC)',
+  'SPHEREx (IRSA/AWS)',
+  'Gaia DR3',
   'CatWISE2020',
-  'Sky globe: Aladin Lite (CDS)',
+  'Aladin Lite',
 ]
 
-/** Data credits on every page (SH-7). No NASA logo; NASA/JPL-Caltech/IPAC are credited as data sources. */
+/** Concise footer credits and method link. */
 export default function Footer() {
   return (
     <footer className="border-t border-line/70 px-4 py-3 text-xs text-ink-3">
@@ -24,13 +24,13 @@ export default function Footer() {
               {c}
             </span>
           ))}
-          . Images are shown as stored; nothing is filled in or simulated.
+          . Real data, no simulated fills.
         </p>
         <Link
           to="/about"
           className="shrink-0 text-focus underline underline-offset-2 hover:brightness-110"
         >
-          Methods and credits
+          Methods
         </Link>
       </div>
     </footer>
