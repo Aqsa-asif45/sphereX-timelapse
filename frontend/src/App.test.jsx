@@ -60,7 +60,7 @@ describe('routes', () => {
 
   it('opens Explore with the target from the URL, and puts the search in the top bar', async () => {
     renderAt('/explore?q=Barnard%27s%20Star')
-    expect(await screen.findByText("Barnard's Star", { selector: 'span' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: "Barnard's Star" })).toBeInTheDocument()
     expect(screen.getByRole('search')).toBeInTheDocument()
   })
 
@@ -87,7 +87,7 @@ describe('routes', () => {
     ['/?ra=133.79&dec=-7.24', '133.79 -7.24'],
   ])('redirects old link %s to Explore', async (path, shown) => {
     renderAt(path)
-    expect(await screen.findByText(shown, { selector: 'span' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: shown })).toBeInTheDocument()
   })
 
   it.each(['/timelens', '/timelens/about'])('redirects old link %s', async (path) => {
