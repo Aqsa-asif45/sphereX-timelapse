@@ -1,70 +1,58 @@
 import { motion } from 'motion/react'
 import { Link } from 'react-router'
 import SearchBox from '../search/SearchBox'
-import { EASE, rise, stagger } from './motion'
-import TargetPreview from './TargetPreview'
+import { rise, stagger } from './motion'
+import SkyBackdrop, { BACKDROP_LABEL } from './SkyBackdrop'
 
-/** Headline, big search, and a real animated SPHEREx preview of Barnard's Star. */
+/** Full-screen hero over the real SPHEREx sky: name, a short intro, the Start button and a search (SH-2, SR-5). */
 export default function Hero() {
   return (
-    <motion.section
-      initial="hidden"
-      animate="show"
-      variants={stagger}
-      className="grid items-center gap-10 py-12 md:grid-cols-[minmax(0,1fr)_312px] md:py-20"
-    >
-      <motion.div variants={stagger} className="flex flex-col gap-5">
-        <motion.p variants={rise} className="text-sm text-ink-3">
+    <section className="relative isolate flex min-h-dvh items-center overflow-hidden">
+      <SkyBackdrop className="-z-10" />
+
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={stagger}
+        className="mx-auto flex w-full max-w-7xl flex-col items-start gap-6 px-4 pt-28 pb-20"
+      >
+        <motion.p variants={rise} className="text-sm text-ink-2">
           NASA Space Apps 2026 · Planet X &amp; SPHEREx
         </motion.p>
-        <motion.h1 variants={rise} className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
+        <motion.h1
+          variants={rise}
+          className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-6xl"
+        >
           Find what moves in the infrared sky.
         </motion.h1>
-        <motion.p variants={rise} className="max-w-xl text-lg text-ink-2">
-          NASA&apos;s SPHEREx telescope photographs the whole sky about every six months, in 102 colours of infrared
-          light. TimeLens finds every SPHEREx image of the spot you choose, lines them up, and plays them in date
+        <motion.p variants={rise} className="max-w-xl text-lg text-ink">
+          NASA&apos;s SPHEREx telescope maps the whole sky every six months in 102 colours of
+          infrared light. TimeLens lines up every visit to the spot you choose and plays them in
           order.
         </motion.p>
         <motion.div variants={rise}>
+          <Link
+            to="/start"
+            className="inline-flex items-center gap-2 rounded-full bg-time px-7 py-3.5 text-base font-semibold text-bg shadow-[0_0_40px_-8px] shadow-time/60 transition hover:brightness-110"
+          >
+            Start your experience
+            <span aria-hidden="true">→</span>
+          </Link>
+        </motion.div>
+        <motion.div variants={rise} className="flex w-full max-w-xl flex-col gap-2">
+          <p className="text-sm text-ink-2">Or go straight to a star or a spot in the sky:</p>
           <SearchBox big id="home-search" />
         </motion.div>
-        <motion.p variants={rise} className="flex gap-3 text-sm">
-          <a href="#sky" className="text-focus underline underline-offset-2">
-            See the whole sky
-          </a>
-          <span aria-hidden="true" className="text-ink-3">
-            ·
-          </span>
+        <motion.p variants={rise} className="text-sm">
           <Link to="/about" className="text-focus underline underline-offset-2">
             Methods and data
           </Link>
         </motion.p>
       </motion.div>
 
-      <motion.figure
-        variants={{
-          hidden: { opacity: 0, scale: 0.96 },
-          show: { opacity: 1, scale: 1, transition: { duration: 0.7, ease: EASE, delay: 0.15 } },
-        }}
-        className="mx-auto flex w-full max-w-[312px] flex-col gap-3"
-      >
-        <div className="rounded-panel border border-line-2 bg-panel/70 p-2 backdrop-blur">
-          <Link to={`/explore?q=${encodeURIComponent("Barnard's Star")}`} aria-label="Open Barnard's Star">
-            <TargetPreview
-              slug="barnard"
-              size={296}
-              alt="Barnard's Star: one frame per SPHEREx visit, looping. The star shifts between visits."
-            />
-          </Link>
-        </div>
-        <figcaption className="text-sm text-ink-2">
-          <b className="font-medium text-ink">Barnard&apos;s Star</b>, a 4′ patch of sky. Each frame is one SPHEREx
-          visit, months apart; the amber ring marks where the star should be.{' '}
-          <span className="rounded-full border border-ok/40 px-2 py-0.5 text-xs whitespace-nowrap text-ok">
-            Real SPHEREx data
-          </span>
-        </figcaption>
-      </motion.figure>
-    </motion.section>
+      <p className="absolute right-4 bottom-3 max-w-[calc(100%-2rem)] text-right text-xs text-ink-2">
+        Backdrop: {BACKDROP_LABEL}, NASA/IPAC. For looking only.
+      </p>
+    </section>
   )
 }

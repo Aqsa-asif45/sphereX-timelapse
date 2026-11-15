@@ -60,7 +60,9 @@ describe('routes', () => {
 
   it('opens Explore with the target from the URL, and puts the search in the top bar', async () => {
     renderAt('/explore?q=Barnard%27s%20Star')
-    expect(await screen.findByRole('heading', { level: 1, name: "Barnard's Star" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: "Barnard's Star" }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('search')).toBeInTheDocument()
   })
 
@@ -74,6 +76,21 @@ describe('routes', () => {
     expect(await screen.findByText('Vega')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Methods' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Methods and credits/)).not.toBeInTheDocument()
+  })
+
+  it('opens the /start features page with the glass top bar', async () => {
+    renderAt('/start')
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /start your experience/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 of 7')).toBeInTheDocument()
+    expect(document.title).toBe('Start · SPHEREx TimeLens')
+  })
+
+  it("redirects the old viewer's embed link /?embed=1&q=... to /embed", async () => {
+    renderAt('/?embed=1&q=Vega')
+    expect(await screen.findByText('Vega')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Methods' })).not.toBeInTheDocument() // the embed view, not Explore
   })
 
   it('shows Not found for unknown paths', async () => {

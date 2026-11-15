@@ -1,0 +1,113 @@
+{
+  "label": "SPHEREx all-sky map, false colour: 4.6 / 2.1 / 1.1 µm as red / green / blue (DR1)",
+  "use": "decoration only (home hero); never for measurements",
+  "source": {
+    "title": "SPHEREx DR1 all-sky data cube",
+    "ivoid": "ivo://IPAC/P/SPHEREx/DR1/cube",
+    "hips_url": "https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube",
+    "allsky_files": {
+      "red": "https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube/Norder3/Allsky_90.png",
+      "green": "https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube/Norder3/Allsky_44.png",
+      "blue": "https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube/Norder3/Allsky_16.png"
+    },
+    "hips_release_date": "2026-11-01T01:58Z",
+    "copyright": "NASA/SPHEREx",
+    "channels": {
+      "red": {
+        "cube_frame": 90,
+        "wavelength_um": 4.6
+      },
+      "green": {
+        "cube_frame": 44,
+        "wavelength_um": 2.089
+      },
+      "blue": {
+        "cube_frame": 16,
+        "wavelength_um": 1.102
+      }
+    },
+    "colour_gains": {
+      "red": 1.2055,
+      "green": 1.0,
+      "blue": 1.1313
+    },
+    "gain_rule": "each colour scaled so its 99.5th percentile matches the brightest one",
+    "pixel_stretch": "IRSA's PNG tiles as published (asinh, cut 0 40); not re-stretched",
+    "healpix_nside": 512
+  },
+  "projection": {
+    "frame": "galactic",
+    "type": "plate carrée (CAR), full sky, 2:1",
+    "centre": "l = 0, b = 0",
+    "left_edge_l_deg": 180,
+    "longitude_grows": "to the left (as seen on the sky)",
+    "supersample": 3
+  },
+  "layers": {
+    "how": "stars = levels above the local median where any colour exceeds it by more than star_cut; faint = map − stars",
+    "blend": "draw stars over faint with mix-blend-mode: plus-lighter to get the map back",
+    "star_box_px": {
+      "desktop": 9,
+      "phone": 5
+    },
+    "star_cut": 24
+  },
+  "webp_quality": {
+    "desktop": 75,
+    "phone": 80
+  },
+  "files": {
+    "sky-desktop-faint.webp": {
+      "bytes": 214390,
+      "size": [
+        2400,
+        1200
+      ]
+    },
+    "sky-desktop-stars.webp": {
+      "bytes": 341928,
+      "size": [
+        2400,
+        1200
+      ]
+    },
+    "sky-phone-faint.webp": {
+      "bytes": 80852,
+      "size": [
+        1200,
+        600
+      ]
+    },
+    "sky-phone-stars.webp": {
+      "bytes": 48836,
+      "size": [
+        1200,
+        600
+      ]
+    },
+    "sky-poster.webp": {
+      "bytes": 768,
+      "size": [
+        320,
+        160
+      ]
+    }
+  },
+  "total_bytes": {
+    "desktop": 557086,
+    "phone": 130456
+  },
+  "stack_check": {
+    "desktop": {
+      "mean_abs": 7.241,
+      "p99_abs": 38,
+      "max_abs": 201
+    },
+    "phone": {
+      "mean_abs": 5.055,
+      "p99_abs": 25,
+      "max_abs": 135
+    }
+  },
+  "created": "2026-11-15T08:34:56Z"
+}

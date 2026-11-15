@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sliceFor } from '../../lib/sky'
 import HomePage from '../../pages/HomePage'
+import StartPage from '../../pages/StartPage'
 import TargetPreview from './TargetPreview'
 
 vi.mock('../../lib/sky', async (orig) => ({
@@ -25,14 +26,15 @@ function Where() {
   return <p data-testid="where">{l.pathname + l.search}</p>
 }
 
-function renderHome() {
+function renderAt(path) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <MotionConfig reducedMotion="always">
-        <MemoryRouter initialEntries={['/']}>
+        <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/start" element={<StartPage />} />
             <Route path="*" element={<Where />} />
           </Routes>
         </MemoryRouter>
@@ -53,9 +55,33 @@ afterEach(() => {
 })
 
 describe('Home', () => {
-  it('has the hero, the globe and five target cards with what to look for (SH-2, SH-3, SH-6)', async () => {
-    renderHome()
+  it('is the hero: headline, Start button to /start, search and the backdrop label (SH-2)', () => {
+    renderAt('/')
     expect(screen.getByRole('heading', { level: 1, name: /find what moves/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /start your experience/i })).toHaveAttribute(
+      'href',
+      '/start',
+    )
+    expect(screen.getByLabelText(/star name or sky coordinates/i)).toBeInTheDocument()
+    expect(screen.getByText(/SPHEREx all-sky map in false colour/)).toBeInTheDocument()
+  })
+
+  it('searching from the hero opens Explore (SR-5)', async () => {
+    renderAt('/')
+    fireEvent.change(screen.getByLabelText(/star name or sky coordinates/i), {
+      target: { value: 'R Dra' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Explore the sky' }))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/explore?q=R%20Dra')
+  })
+})
+
+describe('/start', () => {
+  it('has the globe and five target cards with what to look for (SH-3, SH-6)', async () => {
+    renderAt('/start')
+    expect(
+      screen.getByRole('heading', { level: 1, name: /start your experience/i }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /whole sky/i })).toBeInTheDocument()
     expect(await screen.findByText('Fastest-moving star.')).toBeInTheDocument()
     expect(screen.getAllByTestId('target-card')).toHaveLength(5)
@@ -64,28 +90,34 @@ describe('Home', () => {
   })
 
   it('suggests the five targets in the search box (SR-5)', async () => {
-    renderHome()
-    const list = document.getElementById(screen.getByLabelText(/star name or sky coordinates/i).getAttribute('list'))
+    renderAt('/start')
+    const list = document.getElementById(
+      screen.getByLabelText(/star name or sky coordinates/i).getAttribute('list'),
+    )
     await screen.findByText('Fastest-moving star.')
-    expect([...list.querySelectorAll('option')].map((o) => o.value)).toEqual(TARGETS.map((t) => t.name))
+    expect([...list.querySelectorAll('option')].map((o) => o.value)).toEqual(
+      TARGETS.map((t) => t.name),
+    )
   })
 
   it('searching opens Explore', async () => {
-    renderHome()
-    fireEvent.change(screen.getByLabelText(/star name or sky coordinates/i), { target: { value: 'R Dra' } })
+    renderAt('/start')
+    fireEvent.change(screen.getByLabelText(/star name or sky coordinates/i), {
+      target: { value: 'R Dra' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Explore the sky' }))
     expect(await screen.findByTestId('where')).toHaveTextContent('/explore?q=R%20Dra')
   })
 
   it('a target card opens that target', async () => {
-    renderHome()
+    renderAt('/start')
     await screen.findByText('Fastest-moving star.')
     fireEvent.click(screen.getAllByTestId('target-card')[3])
     expect(await screen.findByTestId('where')).toHaveTextContent('/explore?q=RW%20Aurigae')
   })
 
   it('the globe buttons fly to a target and offer to open it (SH-5)', async () => {
-    renderHome()
+    renderAt('/start')
     expect(screen.getByText(/Loading the SPHEREx sky/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Epsilon Indi B/ }))
     expect(await screen.findByText(/RA 331\.0964° · Dec −56\.8012°/)).toBeInTheDocument()
@@ -94,7 +126,7 @@ describe('Home', () => {
   })
 
   it('has the four wavelengths and a colour switch (SH-4)', () => {
-    renderHome()
+    renderAt('/start')
     for (const um of ['1.1 µm', '2.1 µm', '3.3 µm', '4.6 µm']) {
       expect(screen.getByRole('button', { name: um })).toBeInTheDocument()
     }
@@ -107,6 +139,41 @@ describe('Home', () => {
   })
 })
 
+describe('/start carousel', () => {
+  it('moves with the buttons, the arrow keys and the chips, and shows where you are', () => {
+    renderAt('/start')
+    const where = () => screen.getByText(/^\d of 7$/).textContent
+    expect(where()).toBe('1 of 7')
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(where()).toBe('2 of 7')
+    fireEvent.keyDown(screen.getByRole('tab', { name: /Whole sky/ }), { key: 'ArrowRight' })
+    expect(where()).toBe('3 of 7')
+    fireEvent.keyDown(screen.getByRole('tab', { name: /Whole sky/ }), { key: 'End' })
+    expect(where()).toBe('7 of 7')
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('tab', { name: /Spectrum/ }))
+    expect(where()).toBe('4 of 7')
+    expect(screen.getByRole('tab', { name: /Spectrum/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('keeps the arrow keys for the text while typing in the search box', () => {
+    renderAt('/start')
+    fireEvent.keyDown(screen.getByLabelText(/star name or sky coordinates/i), { key: 'ArrowRight' })
+    expect(screen.getByText('1 of 7')).toBeInTheDocument()
+  })
+
+  it.each([
+    ["Blink Barnard's Star", "/explore?q=Barnard's%20Star&view=blink"],
+    ["Open R Draconis's spectrum", '/explore?q=R%20Draconis&mode=spectrum'],
+    ['Hunt around Epsilon Indi B', '/explore?q=Epsilon%20Indi%20B&mode=movers'],
+    ['Read the methods', '/about'],
+  ])('the "%s" card opens %s', (name, href) => {
+    renderAt('/start')
+    expect(screen.getByRole('link', { name: new RegExp(name) })).toHaveAttribute('href', href)
+  })
+})
+
 describe('preview', () => {
   it('says "not built yet" and tries again later', async () => {
     vi.useFakeTimers()
@@ -116,7 +183,9 @@ describe('preview', () => {
     act(() => fireEvent.error(img))
     expect(screen.getByRole('status')).toHaveTextContent(/not built yet\. It is being made now/)
     act(() => vi.advanceTimersByTime(30_000))
-    expect(document.querySelector('img').getAttribute('src')).toBe('/api/previews/barnard.gif?try=1')
+    expect(document.querySelector('img').getAttribute('src')).toBe(
+      '/api/previews/barnard.gif?try=1',
+    )
   })
 })
 
