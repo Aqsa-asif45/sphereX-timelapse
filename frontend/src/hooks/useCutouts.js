@@ -5,6 +5,7 @@ import { createEngine } from '../lib/engine'
 
 const FALLBACK_AT_ONCE = 6 // a browser opens about six connections to one server
 const TICK_MS = 400 // redraw at most this often while images arrive
+const BATCH_MAX = 400 // ids per batch request (the server's limit)
 
 /** One exposure from each visit in turn, so every visit gets images early. */
 export function interleave(frames) {
@@ -97,8 +98,13 @@ export function useCutouts(frames, center, n, quality = false) {
       await Promise.all(Array.from({ length: FALLBACK_AT_ONCE }, worker))
     }
 
-    api
-      .cutoutBatch(body, got, ac.signal)
+    // the server takes up to 400 images per request: busy fields (both twin detectors) are sent in turn
+    const batches = async () => {
+      for (let i = 0; i < body.ids.length && !ac.signal.aborted; i += BATCH_MAX) {
+        await api.cutoutBatch({ ...body, ids: body.ids.slice(i, i + BATCH_MAX) }, got, ac.signal)
+      }
+    }
+    batches()
       .catch((e) => {
         if (e.name === 'AbortError') return null
         if (e.status === 404 || e.status === 405) return oneByOne() // no batch endpoint: one request per image

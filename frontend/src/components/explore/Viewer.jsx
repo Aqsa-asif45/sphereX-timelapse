@@ -153,7 +153,7 @@ function Readout({ ref, describe }) {
  * The sky viewer: one canvas that draws one scene, or two side by side, with zoom (1–16x; buttons, scroll
  * wheel, + − 0 keys) and drag-to-pan. Zoom and pan survive every change of visit, band or mode.
  * Each scene may carry an `overlay` (target ring, Gaia, WISE) and its panels a `bad` map (bad pixels).
- * `describe(hit)` returns the hover read-out for a pixel.
+ * `describe(hit)` returns the hover read-out for a pixel; `onPick(hit)` is called on a click (not a drag).
  * @param {{ n:number, scenes:Array, zoom:number, onZoom:(z:number)=>void, resetKey:string, contrast:number,
  *   stretch:string, smooth:boolean, alt:string, caption?:React.ReactNode, children?:React.ReactNode,
  *   describe?:(hit:{scene:number, panel:number, gx:number, gy:number}) => React.ReactNode }} p
@@ -250,7 +250,10 @@ export default function Viewer(p) {
     }
   }, [])
 
+  const down = useRef(null) // where a press started, to tell a click (measure here) from a drag
   const onPointerDown = (e) => {
+    if (e.target.closest?.('button')) return
+    down.current = [e.clientX, e.clientY]
     if (p.zoom <= 1) return
     drag.current = { x: e.clientX, y: e.clientY, cx: centre?.cx ?? dataW / 2, cy: centre?.cy ?? dataH / 2 }
     e.currentTarget.setPointerCapture?.(e.pointerId)
@@ -270,6 +273,15 @@ export default function Viewer(p) {
   const endDrag = () => {
     drag.current = null
   }
+  const onPointerUp = (e) => {
+    const d = down.current
+    down.current = null
+    endDrag()
+    if (!p.onPick || !d || Math.hypot(e.clientX - d[0], e.clientY - d[1]) > 4) return
+    const r = box.current.getBoundingClientRect()
+    const h = hitTest(e.clientX - r.left, e.clientY - r.top, g, dims, p.n)
+    if (h) p.onPick(h)
+  }
 
   const btn = 'grid h-8 w-8 place-items-center rounded-ctl border border-ctl bg-bg-2/90 text-ink hover:bg-hover disabled:opacity-40'
   return (
@@ -279,7 +291,7 @@ export default function Viewer(p) {
         className={`relative min-h-[320px] flex-1 overflow-hidden rounded-panel border border-line bg-bg ${p.zoom > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
+        onPointerUp={onPointerUp}
         onPointerCancel={endDrag}
         onPointerLeave={() => readout.current?.(null)}
         data-testid="viewer"

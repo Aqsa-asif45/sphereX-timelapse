@@ -3,6 +3,7 @@
  * The work runs in a Web Worker; where workers are not available (tests, very old browsers) the same
  * functions run in place.
  */
+import { measure } from './photometry'
 import { normalize, stack } from './render'
 
 export function createEngine({ useWorker = typeof Worker !== 'undefined' } = {}) {
@@ -39,7 +40,7 @@ export function createEngine({ useWorker = typeof Worker !== 'undefined' } = {})
       if (w) w.postMessage({ type: 'add', id, image, flags })
       else {
         const nrm = normalize(image)
-        if (nrm) local.set(id, { s: nrm.s, flags })
+        if (nrm) local.set(id, { s: nrm.s, flags, raw: image })
       }
     },
     /** Sigma-clipped stack of these exposures (those loaded so far). @returns {Promise<Float32Array|null>} */
@@ -50,6 +51,20 @@ export function createEngine({ useWorker = typeof Worker !== 'undefined' } = {})
         const r = ++req
         waiting.set(r, resolve)
         w.postMessage({ type: 'stack', req: r, ids })
+      })
+    },
+    /**
+     * Aperture photometry (µJy) of each exposure at its own grid position.
+     * @param {number} n @param {Array<{id:string, x:number, y:number}>} items
+     * @returns {Promise<Array<{id:string, flux:number, err:number}>|null>}
+     */
+    measure(n, items) {
+      const w = ensure()
+      if (!w) return Promise.resolve(items.map(({ id, x, y }) => ({ id, ...(local.get(id) ? measure(local.get(id).raw, n, x, y) : { flux: NaN, err: NaN }) })))
+      return new Promise((resolve) => {
+        const r = ++req
+        waiting.set(r, resolve)
+        w.postMessage({ type: 'measure', req: r, n, items })
       })
     },
     reset() {

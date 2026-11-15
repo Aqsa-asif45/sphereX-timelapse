@@ -19,6 +19,8 @@ export const useExploreStore = create((set) => ({
   cur: 0, // current visit (Play visits) or exposure (Every exposure)
   phase: 0, // Blink: 0 shows A, 1 shows B
   overlays: { ring: true, gaia: false, wise: false, bad: false },
+  probe: null, // Spectrum: the grid pixel [x, y] the user clicked (null = follow the target)
+  jump: null, // an exposure to show once Time > Every exposure opens (set by "Show this exposure")
   details: null, // Details panel: null = the default for the screen size (open on wide screens), else true/false
   set: (partial) => set(partial),
   togglePlay: () => set((s) => ({ playing: !s.playing })),

@@ -195,6 +195,18 @@ export function drawOverlays(x, o, n, scale) {
       }
     }
   }
+  if (o.probe) {
+    // the point being measured (Spectrum): a dashed circle the size of the photometry aperture's sky ring
+    const px = (o.probe[0] + 0.5) * scale
+    const py = (o.probe[1] + 0.5) * scale
+    x.strokeStyle = 'rgba(255,255,255,.95)'
+    x.lineWidth = 1.5
+    x.setLineDash([4, 3])
+    x.beginPath()
+    x.arc(px, py, Math.max(8, scale * 1.6), 0, Math.PI * 2)
+    x.stroke()
+    x.setLineDash([])
+  }
   if (o.target) {
     const t = o.target
     if ((t.pmra || t.pmdec) && o.span) {

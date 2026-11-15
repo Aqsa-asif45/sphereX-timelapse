@@ -4,6 +4,7 @@ import ActivityLog from '../components/explore/ActivityLog'
 import Inspector from '../components/explore/Inspector'
 import LoadProgress from '../components/explore/LoadProgress'
 import OverlayBar from '../components/explore/OverlayBar'
+import SpectrumLab from '../components/explore/SpectrumLab'
 import StageBar from '../components/explore/StageBar'
 import TimeControls from '../components/explore/TimeControls'
 import TimeRuler from '../components/explore/TimeRuler'
@@ -148,7 +149,7 @@ export default function ExplorePage() {
   const visits = useMemo(() => groupVisits(frames), [frames])
   const n = sizeFor(p.fov)
   const center = useMemo(() => (t ? positionAt(t, REF_MJD).map((v) => +v.toFixed(6)) : null), [t])
-  const { contrast, stretch, smooth, playing, speed, cur, phase, overlays, details, set: setUi } = useExploreStore()
+  const { contrast, stretch, smooth, playing, speed, cur, phase, overlays, details, probe, set: setUi } = useExploreStore()
   // flags and noise come with every image up to a 10′ field, and on request (Bad pixels) for larger ones
   const quality = n <= 99 || overlays.bad
   const cut = useCutouts(frames.length ? frames : null, center, n, quality)
@@ -187,10 +188,18 @@ export default function ExplorePage() {
   const time = p.mode === 'time'
   const seqLen = !time ? 0 : p.view === 'blink' ? 2 : p.view === 'play' ? nv : p.view === 'exposures' ? exposures.length : 0
 
-  // a new target or a new view starts from the beginning, paused
+  // a new target or a new view starts from the beginning, paused (or at the exposure asked for by a spectrum point)
   useEffect(() => {
-    setUi({ cur: 0, phase: 0, playing: false })
+    setUi({ cur: useExploreStore.getState().jump ?? 0, jump: null, phase: 0, playing: false })
   }, [p.q, p.view, p.mode, setUi])
+  // a new target or field measures at the target again
+  useEffect(() => {
+    setUi({ probe: null })
+  }, [p.q, p.fov, setUi])
+  const showExposure = (f) => {
+    setUi({ jump: Math.max(0, frames.findIndex((x) => x.id === f.id)) })
+    set({ mode: 'time', view: 'exposures', colours: 'all' })
+  }
 
   const step = useCallback(
     (d) => {
@@ -281,6 +290,7 @@ export default function ExplorePage() {
       mjd: item.mjd,
       span,
       target: overlays.ring ? t : null,
+      probe: p.mode === 'spectrum' ? probe : null,
       gaia: overlays.gaia ? (gaia.data ?? null) : null,
       wise: overlays.wise ? (wise.data ?? null) : null,
     },
@@ -353,6 +363,7 @@ export default function ExplorePage() {
           contrast={contrast}
           stretch={stretch}
           smooth={smooth}
+          onPick={p.mode === 'spectrum' ? (hit) => setUi({ probe: [hit.gx, hit.gy] }) : undefined}
           describe={(hit) => readoutFor(hit, { scenes, images: cut.images, center, n, quality: cut.quality, flagNames })}
           alt={caption || 'SPHEREx image'}
           caption={
@@ -400,11 +411,23 @@ export default function ExplorePage() {
               </p>
             </>
           )}
-          {(p.mode === 'spectrum' || p.mode === 'movers') && (
-            <p className="text-sm text-ink-3">
-              {p.mode === 'spectrum' ? 'The spectrum lab' : 'The mover finder'} arrives in Phase {p.mode === 'spectrum' ? 9 : 10}. The image above is the deep picture.
-            </p>
+          {p.mode === 'spectrum' && (
+            <SpectrumLab
+              q={p.q}
+              target={t}
+              frames={frames}
+              visits={visits}
+              engine={cut.engine}
+              version={cut.version}
+              n={n}
+              center={center}
+              images={cut.images}
+              probe={probe}
+              setProbe={(v) => setUi({ probe: v })}
+              onShowExposure={showExposure}
+            />
           )}
+          {p.mode === 'movers' && <p className="text-sm text-ink-3">The mover finder arrives in Phase 10. The image above is the deep picture.</p>}
           {obs.notes.length > 0 && <p className="text-xs text-ink-3">{obs.notes.join(' · ')}</p>}
         </section>
       </>
