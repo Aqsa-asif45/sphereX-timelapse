@@ -3,6 +3,7 @@
  * The work runs in a Web Worker; where workers are not available (tests, very old browsers) the same
  * functions run in place.
  */
+import { findMovers } from './movers'
 import { measure } from './photometry'
 import { normalize, stack } from './render'
 
@@ -65,6 +66,27 @@ export function createEngine({ useWorker = typeof Worker !== 'undefined' } = {})
         const r = ++req
         waiting.set(r, resolve)
         w.postMessage({ type: 'measure', req: r, n, items })
+      })
+    },
+    /**
+     * The mover finder on one stack per visit (in the worker).
+     * @param {number} n @param {Array<{i:number, mjd:number, ids:string[]}>} visits
+     */
+    findMovers(n, visits) {
+      const w = ensure()
+      if (!w) {
+        const vis = visits
+          .map((v) => {
+            const list = v.ids.map((id) => local.get(id)).filter(Boolean)
+            return { i: v.i, mjd: v.mjd, frames: list.length, s: stack(list) }
+          })
+          .filter((v) => v.s)
+        return Promise.resolve(findMovers(vis, n))
+      }
+      return new Promise((resolve) => {
+        const r = ++req
+        waiting.set(r, resolve)
+        w.postMessage({ type: 'movers', req: r, n, visits })
       })
     },
     reset() {

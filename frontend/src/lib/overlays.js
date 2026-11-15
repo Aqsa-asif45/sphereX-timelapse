@@ -195,6 +195,40 @@ export function drawOverlays(x, o, n, scale) {
       }
     }
   }
+  // movers (MV-8): pink arrows from the first to the last visit used; "appeared once" as dashed circles;
+  // your own marks as corner crosses. A find Gaia ruled out is drawn only when selected.
+  for (const f of o.finds ?? []) {
+    if (f.dismissed && f.id !== o.pick) continue
+    const on = f.id === o.pick
+    const col = on ? '#ffffff' : f.kind === 'yours' ? '#ff7a6b' : '#ff5cf0'
+    const g = (v) => (v + 0.5) * scale
+    x.strokeStyle = col
+    x.lineWidth = on ? 2.4 : 1.8
+    if (f.kind === 'moving') {
+      // stretched to at least ~4 px so a one-pixel shift is still visible
+      const k2 = Math.max(1, 4 / Math.max(0.3, f.shift))
+      x.beginPath()
+      x.arc(g(f.x0), g(f.y0), Math.max(6, scale * 1.2), 0, Math.PI * 2)
+      x.stroke()
+      arrow(x, g(f.x0), g(f.y0), g(f.x0 + (f.x1 - f.x0) * k2), g(f.y0 + (f.y1 - f.y0) * k2), col)
+    } else if (f.kind === 'once') {
+      x.setLineDash([3, 3])
+      x.beginPath()
+      x.arc(g(f.x0), g(f.y0), Math.max(9, scale * 2), 0, Math.PI * 2)
+      x.stroke()
+      x.setLineDash([])
+    } else {
+      const px = g(f.x0)
+      const py = g(f.y0)
+      const r = Math.max(7, scale * 1.6)
+      x.beginPath()
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        x.moveTo(px + sx * r, py + sy * r)
+        x.lineTo(px + (sx * r) / 2.5, py + (sy * r) / 2.5)
+      }
+      x.stroke()
+    }
+  }
   if (o.probe) {
     // the point being measured (Spectrum): a dashed circle the size of the photometry aperture's sky ring
     const px = (o.probe[0] + 0.5) * scale

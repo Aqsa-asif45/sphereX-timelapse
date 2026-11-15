@@ -1,15 +1,16 @@
-import { useQueries } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ActivityLog from '../components/explore/ActivityLog'
 import Inspector from '../components/explore/Inspector'
 import LoadProgress from '../components/explore/LoadProgress'
+import MoversPanel from '../components/explore/MoversPanel'
 import OverlayBar from '../components/explore/OverlayBar'
 import SpectrumLab from '../components/explore/SpectrumLab'
 import StageBar from '../components/explore/StageBar'
 import TimeControls from '../components/explore/TimeControls'
 import TimeRuler from '../components/explore/TimeRuler'
 import Viewer from '../components/explore/Viewer'
-import { useCatalog } from '../hooks/useCatalog'
+import { catalogQuery, useCatalog } from '../hooks/useCatalog'
 import { useCutouts } from '../hooks/useCutouts'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useExploreParams } from '../hooks/useExploreParams'
@@ -21,8 +22,10 @@ import { useTitle } from '../hooks/useTitle'
 import * as api from '../lib/api'
 import { REF_MJD, fmtMonth, groupVisits, gridToSky, plural, positionAt, sizeFor } from '../lib/astro'
 import { idsKey } from '../lib/engine'
+import { marksAsCandidates, reviewKey, toCandidates } from '../lib/movers'
 import { WIDE_PX, badFraction, differenceOf, flagName, fmtMJy, isBadBit, readPixel, signed } from '../lib/overlays'
 import { combine } from '../lib/render'
+import { KEYS, load, save } from '../lib/storage'
 import { VIEW_LABEL, bandOf, combineItem, deepItem, exposureItem, inBand, panelsFor, visitItem } from '../lib/scenes'
 import { useActivity } from '../store/activityStore'
 import { SPEEDS, useExploreStore } from '../store/exploreStore'
@@ -196,6 +199,52 @@ export default function ExplorePage() {
   useEffect(() => {
     setUi({ probe: null })
   }, [p.q, p.fov, setUi])
+  // ── movers: finds, your marks, review status (this device only) ──
+  const qc = useQueryClient()
+  const moverKey = `${p.q}|${p.fov}|${frames.length}`
+  const [found, setFound] = useState({ key: '', cands: null, error: '' })
+  const cands = found.key === moverKey ? found.cands : null
+  const [finding, setFinding] = useState('')
+  // the selected candidate and "mark a spot" mode belong to one view: a new target or field clears them
+  const [pickState, setPickState] = useState({ key: '', id: null })
+  const pick = pickState.key === moverKey ? pickState.id : null
+  const setPick = (id) => setPickState({ key: moverKey, id })
+  const [markState, setMarkState] = useState('')
+  const marking = markState === moverKey
+  const setMarking = (on) => setMarkState(on ? moverKey : '')
+  const [marks, setMarks] = useState(() => load(KEYS.marks, []))
+  const [reviews, setReviews] = useState(() => load(KEYS.reviews, {}))
+  const [storageOk, setStorageOk] = useState(true)
+  const liveKey = useRef(moverKey) // the view now, for answers that arrive after the user moved on
+  useEffect(() => {
+    liveKey.current = moverKey
+  }, [moverKey])
+  const yours = useMemo(() => (t ? marksAsCandidates(marks, t.name, center, n) : []), [marks, t, center, n])
+  const reviewOf = (c) => reviews[reviewKey(t?.name ?? p.q, c)] ?? { status: 'new', note: '' }
+  const setReview = (c, r) => {
+    const next = { ...reviews, [reviewKey(t?.name ?? p.q, c)]: { ...reviewOf(c), ...r } }
+    setReviews(next)
+    setStorageOk(save(KEYS.reviews, next))
+  }
+  const saveMarks = (ms) => {
+    setMarks(ms)
+    setStorageOk(save(KEYS.marks, ms))
+  }
+  const runMovers = async () => {
+    if (!center || !visits.length) return
+    const key = moverKey
+    setFinding(key)
+    const gaiaRows = await qc.fetchQuery(catalogQuery('gaia', center, p.fov)).catch(() => null) // null: "Gaia not reachable"
+    const finds = await cut.engine.findMovers(n, visits.map((v) => ({ i: v.i, mjd: v.mjd, ids: v.frames.map((f) => f.id) })))
+    setFinding('')
+    // the target or field changed while it ran: these finds belong to the old view (OV-5)
+    if (key !== liveKey.current || !finds) return
+    const list = toCandidates(finds, { center, n, midMjd: (frames[0].mjd + frames[frames.length - 1].mjd) / 2, gaia: gaiaRows })
+    setFound({ key, cands: list, error: '' })
+    setPick(null)
+    const moving = list.filter((c) => c.kind === 'moving' && !c.dismissed)
+    log(view, `Mover finder: ${plural(moving.length, 'moving source')}, ${plural(list.filter((c) => c.kind === 'once' && !c.dismissed).length, 'one-visit source')}${gaiaRows ? '' : ' (Gaia not reachable)'}`, 'ok')
+  }
   const showExposure = (f) => {
     setUi({ jump: Math.max(0, frames.findIndex((x) => x.id === f.id)) })
     set({ mode: 'time', view: 'exposures', colours: 'all' })
@@ -291,6 +340,8 @@ export default function ExplorePage() {
       span,
       target: overlays.ring ? t : null,
       probe: p.mode === 'spectrum' ? probe : null,
+      finds: p.mode === 'movers' ? [...(cands ?? []), ...yours] : null,
+      pick,
       gaia: overlays.gaia ? (gaia.data ?? null) : null,
       wise: overlays.wise ? (wise.data ?? null) : null,
     },
@@ -363,7 +414,20 @@ export default function ExplorePage() {
           contrast={contrast}
           stretch={stretch}
           smooth={smooth}
-          onPick={p.mode === 'spectrum' ? (hit) => setUi({ probe: [hit.gx, hit.gy] }) : undefined}
+          onPick={
+            p.mode === 'spectrum'
+              ? (hit) => setUi({ probe: [hit.gx, hit.gy] })
+              : p.mode === 'movers' && marking && t
+                ? (hit) => {
+                    const c0 = (n - 1) / 2
+                    const [ra, dec] = gridToSky(center[0], center[1], hit.gx - c0, hit.gy - c0)
+                    const m = { id: Math.random().toString(36).slice(2, 9), target: t.name, ra, dec, seen: caption, mjd: onScreen?.mjd ?? REF_MJD, created: new Date().toISOString() }
+                    saveMarks([...marks, m])
+                    setMarking(false)
+                    setPick(`Y${yours.length + 1}`)
+                  }
+                : undefined
+          }
           describe={(hit) => readoutFor(hit, { scenes, images: cut.images, center, n, quality: cut.quality, flagNames })}
           alt={caption || 'SPHEREx image'}
           caption={
@@ -427,7 +491,36 @@ export default function ExplorePage() {
               onShowExposure={showExposure}
             />
           )}
-          {p.mode === 'movers' && <p className="text-sm text-ink-3">The mover finder arrives in Phase 10. The image above is the deep picture.</p>}
+          {p.mode === 'movers' && (
+            <MoversPanel
+              cands={cands}
+              yours={yours}
+              finding={finding === moverKey}
+              canRun={nv >= 2 && cut.loaded > 0}
+              runNote={
+                nv < 2
+                  ? 'Needs at least two visits to compare.'
+                  : cut.loaded < cut.total
+                    ? `Images still loading (${cut.loaded} of ${cut.total}): a search now uses those so far.`
+                    : `Compares ${plural(nv, 'visit')} (${plural(frames.length, 'exposure')}), then checks every find against Gaia DR3.`
+              }
+              onRun={runMovers}
+              pick={pick}
+              onPick={setPick}
+              marking={marking}
+              setMarking={setMarking}
+              reviewOf={reviewOf}
+              setReview={setReview}
+              onRemoveMark={(c) => {
+                saveMarks(marks.filter((m) => m.id !== c.markId))
+                setPick(null)
+              }}
+              storageOk={storageOk}
+              targetName={t?.name ?? p.q}
+              loaded={cut.loaded}
+              total={cut.total}
+            />
+          )}
           {obs.notes.length > 0 && <p className="text-xs text-ink-3">{obs.notes.join(' · ')}</p>}
         </section>
       </>
