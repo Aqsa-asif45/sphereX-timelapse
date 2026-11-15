@@ -92,6 +92,11 @@ async def warm(args) -> None:
 
 
 def main(argv=None) -> int:
+    # target names contain characters such as "−" (WISE 0855−0714) that a Windows console's default code page
+    # cannot print; write UTF-8 instead of crashing
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     p = argparse.ArgumentParser(prog="python -m app.cli", description="SPHEREx TimeLens tools")
     sub = p.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build-index", help="refresh the folder list and index weeks not indexed yet")
