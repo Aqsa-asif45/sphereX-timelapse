@@ -12,7 +12,7 @@ export default function TopBar() {
   const [params] = useSearchParams()
   const onExplore = pathname === '/explore'
   return (
-    <header className="flex h-14 items-center gap-4 border-b border-line bg-bg px-4">
+    <header className="flex h-14 items-center gap-2 border-b sm:gap-4 border-line bg-bg px-4">
       <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="SPHEREx TimeLens home">
         <Logo size={24} />
         <span className="hidden font-medium tracking-tight sm:inline">

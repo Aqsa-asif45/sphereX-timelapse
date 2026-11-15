@@ -24,16 +24,18 @@ export function timeLeft(left, stamps) {
  * Loads every exposure's cutout for one view (target x field size) in ONE streamed request, and hands each
  * one to the image engine. Falls back to one request per image if the batch endpoint is missing.
  * Failed images are counted and can be fetched again with retry().
- * @returns {{ engine, images: Map, loaded, failed, total, version, secondsLeft, error, retry }}
+ * With `quality`, each image also brings its data-quality flags and noise (VARIANCE) layers, for the
+ * bad-pixel overlay and the hover read-out; the stacks themselves are made exactly as without them.
+ * @returns {{ engine, images: Map, loaded, failed, total, version, secondsLeft, error, retry, quality }}
  */
-export function useCutouts(frames, center, n) {
+export function useCutouts(frames, center, n, quality = false) {
   const engine = useMemo(() => createEngine(), [])
   // raw cutouts by frame id (kept for measurements in later phases); a stable object, mutated as images arrive
   const store = useMemo(() => ({ images: new Map() }), [])
   const [counts, setCounts] = useState({ loaded: 0, failed: 0, version: 0, secondsLeft: NaN, error: null })
   const [attempt, setAttempt] = useState(0)
   const failedIds = useRef(new Set())
-  const viewKey = frames && center ? `${center[0]}|${center[1]}|${n}|${frames.length}` : ''
+  const viewKey = frames && center ? `${center[0]}|${center[1]}|${n}|${frames.length}|${quality ? 'q' : ''}` : ''
   const lastView = useRef('')
 
   useEffect(() => () => engine.dispose(), [engine])
@@ -73,11 +75,11 @@ export function useCutouts(frames, center, n) {
       if (stamps.length > 40) stamps.shift()
       if (c) {
         store.images.set(id, c)
-        engine.add(id, c.image, c.flags)
+        engine.add(id, c.image) // flags are kept for overlays; stacks stay as before
       } else failedIds.current.add(id)
       dirty = true
     }
-    const body = { ids: todo.map((f) => f.id), ra: center[0], dec: center[1], n, scale: PIXEL_ARCSEC }
+    const body = { ids: todo.map((f) => f.id), ra: center[0], dec: center[1], n, scale: PIXEL_ARCSEC, flags: quality, variance: quality }
 
     const oneByOne = async () => {
       let next = 0
@@ -115,13 +117,14 @@ export function useCutouts(frames, center, n) {
       ac.abort()
       clearInterval(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- viewKey covers frames, center and n
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- viewKey covers frames, center, n and quality
   }, [viewKey, attempt, engine])
 
   return {
     engine,
     images: store.images,
     total: frames?.length ?? 0,
+    quality,
     ...counts,
     retry: () => {
       setCounts((c) => ({ ...c, failed: 0, error: null }))

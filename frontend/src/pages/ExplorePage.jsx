@@ -1,18 +1,29 @@
+import { useQueries } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo } from 'react'
+import ActivityLog from '../components/explore/ActivityLog'
+import Inspector from '../components/explore/Inspector'
 import LoadProgress from '../components/explore/LoadProgress'
+import OverlayBar from '../components/explore/OverlayBar'
 import StageBar from '../components/explore/StageBar'
 import TimeControls from '../components/explore/TimeControls'
 import TimeRuler from '../components/explore/TimeRuler'
 import Viewer from '../components/explore/Viewer'
+import { useCatalog } from '../hooks/useCatalog'
 import { useCutouts } from '../hooks/useCutouts'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useExploreParams } from '../hooks/useExploreParams'
 import { useObservations } from '../hooks/useObservations'
 import { useStacks } from '../hooks/useStacks'
+import { useServerStatus } from '../hooks/useServerStatus'
 import { useTarget } from '../hooks/useTarget'
 import { useTitle } from '../hooks/useTitle'
-import { REF_MJD, fmtMonth, groupVisits, plural, positionAt, sizeFor } from '../lib/astro'
+import * as api from '../lib/api'
+import { REF_MJD, fmtMonth, groupVisits, gridToSky, plural, positionAt, sizeFor } from '../lib/astro'
+import { idsKey } from '../lib/engine'
+import { WIDE_PX, badFraction, differenceOf, flagName, fmtMJy, isBadBit, readPixel, signed } from '../lib/overlays'
 import { combine } from '../lib/render'
 import { VIEW_LABEL, bandOf, combineItem, deepItem, exposureItem, inBand, panelsFor, visitItem } from '../lib/scenes'
+import { useActivity } from '../store/activityStore'
 import { SPEEDS, useExploreStore } from '../store/exploreStore'
 
 const COMPARE = ['blink', 'side', 'diff', 'combine']
@@ -59,7 +70,74 @@ function searchProgress(e) {
   return "Asking NASA's archive which SPHEREx exposures cover this spot…"
 }
 
-/** The TimeLens workspace (Phases 6–7: Sky and Time modes). */
+/** Bad-pixel maps per set of exposures, remade when more images have arrived (version). */
+const badMaps = new WeakMap()
+function badMapFor(images, version, ids) {
+  let e = badMaps.get(images)
+  if (!e || e.version !== version) badMaps.set(images, (e = { version, map: new Map() }))
+  const k = idsKey(ids)
+  if (!e.map.has(k)) e.map.set(k, badFraction(images, ids))
+  return e.map.get(k)
+}
+
+const SOURCE_NAME = { sia2: 'IRSA SIA2', tap: 'IRSA TAP', index: 'the sky index' }
+
+/** The hover read-out for one pixel (VW-6): value, noise, flags, RA and Dec. */
+function readoutFor(hit, { scenes, images, center, n, quality, flagNames }) {
+  const panel = scenes[hit.scene]?.panels[hit.panel]
+  if (!panel || !center) return null
+  const c0 = (n - 1) / 2
+  const [ra, dec] = gridToSky(center[0], center[1], hit.gx - c0, hit.gy - c0)
+  const i = hit.gy * n + hit.gx
+  let r = readPixel(images, panel.ids ?? [], i)
+  if (panel.refIds?.length && panel.op !== 'add') r = differenceOf(r, readPixel(images, panel.refIds, i))
+  else if (panel.refIds?.length) r = readPixel(images, [...panel.ids, ...panel.refIds], i)
+  const sigma = panel.data?.[i]
+  const what = panel.refIds?.length && panel.op !== 'add' ? 'A − B' : r.used === 1 ? 'one exposure' : `mean of ${r.used} exposures`
+  return (
+    <>
+      <div>
+        RA {ra.toFixed(5)}° · Dec {signed(dec, 5)}° <span className="text-ink-3">· pixel {hit.gx + 1}, {hit.gy + 1}</span>
+      </div>
+      <div>
+        {r.used === 0 && !Number.isFinite(sigma) ? (
+          <span className="text-ink-3">blank: not measured here</span>
+        ) : (
+          <>
+            {Number.isFinite(sigma) && <span className="text-ink">{signed(sigma, 1)} σ</span>}
+            {Number.isFinite(r.mean) && (
+              <>
+                {Number.isFinite(sigma) && ' · '}
+                <span className="text-ink">{fmtMJy(r.mean)}</span>
+                {Number.isFinite(r.noise) ? ` ± ${fmtMJy(r.noise)}` : quality ? ' ± ?' : ''} MJy/sr <span className="text-ink-3">({what})</span>
+              </>
+            )}
+          </>
+        )}
+      </div>
+      <div>
+        Flags:{' '}
+        {!quality ? (
+          <span className="text-ink-3">not loaded at this field size (switch on Bad pixels)</span>
+        ) : r.withFlags === 0 ? (
+          <span className="text-ink-3">no flag information</span>
+        ) : r.flags.length === 0 ? (
+          'none'
+        ) : (
+          r.flags.slice(0, 4).map(([b, k], j) => (
+            <span key={b} className={isBadBit(b) ? 'text-time' : ''}>
+              {j > 0 && ', '}
+              {flagName(b, flagNames)} {k}/{r.withFlags}
+            </span>
+          ))
+        )}
+        {quality && r.flags.length > 4 && <span className="text-ink-3"> +{r.flags.length - 4} more</span>}
+      </div>
+    </>
+  )
+}
+
+/** The TimeLens workspace (Phases 6–8: Sky and Time modes, overlays and details). */
 export default function ExplorePage() {
   const [p, set] = useExploreParams()
   useTitle(p.q || 'Explore')
@@ -70,9 +148,33 @@ export default function ExplorePage() {
   const visits = useMemo(() => groupVisits(frames), [frames])
   const n = sizeFor(p.fov)
   const center = useMemo(() => (t ? positionAt(t, REF_MJD).map((v) => +v.toFixed(6)) : null), [t])
-  const cut = useCutouts(frames.length ? frames : null, center, n)
+  const { contrast, stretch, smooth, playing, speed, cur, phase, overlays, details, set: setUi } = useExploreStore()
+  // flags and noise come with every image up to a 10′ field, and on request (Bad pixels) for larger ones
+  const quality = n <= 99 || overlays.bad
+  const cut = useCutouts(frames.length ? frames : null, center, n, quality)
   const getStack = useStacks(cut.engine, cut.version)
-  const { contrast, stretch, smooth, playing, speed, cur, phase, set: setUi } = useExploreStore()
+  const gaia = useCatalog('gaia', center, p.fov, overlays.gaia)
+  const wise = useCatalog('wise', center, p.fov, overlays.wise)
+  const span = frames.length ? [frames[0].mjd, frames[frames.length - 1].mjd] : null
+  const wide = useMediaQuery(`(min-width: ${WIDE_PX}px)`)
+  const detailsOpen = details ?? wide
+  const status = useServerStatus()
+
+  // the files' own flag bit names, one exposure per release
+  const firstOfRelease = useMemo(() => [...new Map(frames.map((f) => [f.release, f.id])).entries()], [frames])
+  const names = useQueries({
+    queries: firstOfRelease.map(([, id]) => ({
+      queryKey: ['flags', id],
+      queryFn: ({ signal }) => api.flagNames(id, signal),
+      enabled: quality,
+      staleTime: Infinity,
+      retry: 1,
+    })),
+  })
+  const flagNames = Object.fromEntries(firstOfRelease.map(([rel], k) => [rel, names[k]?.data?.names]))
+
+  // bad-pixel maps, made once per set of exposures and redone as more images arrive
+  const badOf = (ids) => (overlays.bad && ids?.length ? badMapFor(cut.images, cut.version, ids) : null)
 
   const disabledColours = p.view === 'exposures' && p.mode === 'time' ? ['six', 'rgb'] : p.view === 'side' && p.mode === 'time' ? ['six'] : []
   const colours = disabledColours.includes(p.colours) ? 'all' : p.colours
@@ -122,18 +224,78 @@ export default function ExplorePage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [time, step])
 
+  // ── activity log (HL-5): one log per view; a late answer for a view already left is not logged ──
+  const view = `${p.q}|${p.fov}`
+  const { begin, log } = useActivity.getState()
+  useEffect(() => {
+    if (begin(view) && p.q) log(view, `Looking up “${p.q}”…`)
+  }, [view, p.q, begin, log])
+  useEffect(() => {
+    if (target.isError) log(view, target.error.message, 'error')
+    else if (t) log(view, `${t.name}: RA ${t.ra.toFixed(5)}°, Dec ${signed(t.dec, 5)}° (${t.source})`, 'ok')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per answer
+  }, [t, target.isError])
+  const ev = obs.progress
+  useEffect(() => {
+    if (!ev) return
+    if (ev.type === 'started') log(view, "Searching NASA's archive for every SPHEREx exposure of this spot…")
+    else if (ev.type === 'collection') log(view, ev.error ? `${ev.collection} did not answer (${ev.error})` : `IRSA listed ${ev.count} files from ${ev.collection}`, ev.error ? 'warn' : 'info')
+    else if (ev.type === 'fallback') log(view, `Fallback: using ${SOURCE_NAME[ev.source] ?? ev.source} (${ev.reason})`, 'warn')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per event
+  }, [ev])
+  useEffect(() => {
+    if (obs.status === 'error') log(view, `Search failed: ${obs.error}`, 'error')
+    else if (obs.status === 'done' && obs.result) {
+      const r = obs.result
+      const via = (r.sources ?? []).map((x) => SOURCE_NAME[x] ?? x).join(' + ') || 'a saved search'
+      log(view, r.count ? `Found ${plural(r.count, 'exposure')} in ${plural(groupVisits(r.frames).length, 'visit')} via ${via}` : 'No SPHEREx exposures cover this spot yet', r.count ? 'ok' : 'warn')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per search outcome
+  }, [obs.status, obs.result])
+  const imagesDone = cut.total > 0 && cut.loaded + cut.failed >= cut.total
+  useEffect(() => {
+    if (!cut.total) return
+    if (!imagesDone) log(view, `Loading ${plural(cut.total, 'image')} (one per visit first)${cut.quality ? ' with flags and noise' : ''}…`)
+    else if (cut.failed) log(view, `${cut.failed} of ${plural(cut.total, 'image')} could not be loaded${cut.error ? ` (${cut.error})` : ''}`, 'warn')
+    else log(view, `All ${plural(cut.total, 'image')} ready`, 'ok')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per load and per finish
+  }, [imagesDone, cut.total, cut.quality])
+  for (const [q, name] of [
+    [gaia, 'Gaia DR3'],
+    [wise, 'CatWISE2020'],
+  ]) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- a fixed list of two, always in the same order
+    useEffect(() => {
+      if (q.isError) log(view, `${name} unavailable: ${q.error.message}`, 'error')
+      else if (q.data) log(view, `${name}: ${plural(q.data.count ?? q.data.rows.length, 'source')} around the field (${q.data.source}${q.data.from_cache ? ', saved' : ''})`, 'ok')
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- once per answer
+    }, [q.data, q.isError])
+  }
+
   // ── what to draw ──
   const sceneOf = (item, tag, tagColour) => ({
     tag,
     tagColour,
+    overlay: center && {
+      center,
+      mjd: item.mjd,
+      span,
+      target: overlays.ring ? t : null,
+      gaia: overlays.gaia ? (gaia.data ?? null) : null,
+      wise: overlays.wise ? (wise.data ?? null) : null,
+    },
     panels: panelsFor(item, colours).map((spec) => {
-      if (spec.kind === 'rgb') return { kind: 'rgb', rgb: spec.rgbIds.map((ids) => (ids.length ? (getStack(ids) ?? null) : null)) }
+      if (spec.kind === 'rgb') {
+        const all = spec.rgbIds.flat()
+        return { kind: 'rgb', rgb: spec.rgbIds.map((ids) => (ids.length ? (getStack(ids) ?? null) : null)), ids: all, bad: badOf(all) }
+      }
       let data = spec.empty ? null : getStack(spec.ids)
       if (data && spec.refIds) {
         const ref = spec.refIds.length ? getStack(spec.refIds) : null
         data = ref ? combineCached(data, ref, spec.op ?? 'sub') : null
       }
-      return { kind: spec.kind, label: spec.label, data: data ?? null, empty: spec.empty }
+      const bad = spec.empty ? null : badOf(spec.refIds ? [...spec.ids, ...spec.refIds] : spec.ids)
+      return { kind: spec.kind, label: spec.label, data: data ?? null, empty: spec.empty, ids: spec.ids, refIds: spec.refIds, op: spec.op, bad }
     }),
   })
 
@@ -166,6 +328,8 @@ export default function ExplorePage() {
     }
     if (shown && !caption) caption = `${shown.label} · ${shown.sub} · ${p.fov}′ field, north up, east left`
   }
+  // what the Details panel describes: the picture on screen (visit A in Side by side)
+  const onScreen = shown ?? (nv && time && p.view === 'side' ? visitItem(visits, A, band, 'A · ') : null)
   const sameVisit = time && COMPARE.includes(p.view) && A === B && nv > 0
   const diffNote = time && (p.view === 'diff' || (p.view === 'combine' && p.op === 'sub'))
 
@@ -189,6 +353,7 @@ export default function ExplorePage() {
           contrast={contrast}
           stretch={stretch}
           smooth={smooth}
+          describe={(hit) => readoutFor(hit, { scenes, images: cut.images, center, n, quality: cut.quality, flagNames })}
           alt={caption || 'SPHEREx image'}
           caption={
             <>
@@ -246,10 +411,50 @@ export default function ExplorePage() {
     )
   }
 
+  const loadedAll = cut.total > 0 && cut.loaded + cut.failed >= cut.total
+  const flagsNote = overlays.bad && quality && cut.total ? (loadedAll ? null : `loading flags… ${cut.loaded} of ${cut.total}`) : null
+  const inspector = (
+    <Inspector
+      open={detailsOpen}
+      wide={wide}
+      onClose={() => setUi({ details: false })}
+      q={p.q}
+      target={t}
+      result={obs.result}
+      frames={frames}
+      visits={visits}
+      cur={onScreen}
+      fov={p.fov}
+      n={n}
+      center={center}
+      cut={cut}
+      images={cut.images}
+      flagNames={flagNames}
+      irsa={status.irsa}
+    />
+  )
+
   return (
-    <main id="main" className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 px-4 py-4">
-      <StageBar target={t} frames={frames} visits={visits} p={p} set={set} disabledColours={disabledColours} />
-      {body}
+    <main id="main" className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-3 px-4 py-4">
+      <StageBar
+        target={t}
+        frames={frames}
+        visits={visits}
+        p={p}
+        set={set}
+        disabledColours={disabledColours}
+        detailsOpen={detailsOpen}
+        onDetails={() => setUi({ details: !detailsOpen })}
+      />
+      <OverlayBar hasTarget={!!t} gaia={overlays.gaia ? gaia : null} wise={overlays.wise ? wise : null} flagsNote={flagsNote} />
+      <div className={wide && detailsOpen ? 'grid flex-1 grid-cols-[minmax(0,1fr)_360px] items-start gap-3' : 'flex flex-1 flex-col'}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 self-stretch">
+          {body}
+          {p.q && <ActivityLog />}
+        </div>
+        {wide && inspector}
+      </div>
+      {!wide && inspector}
     </main>
   )
 }

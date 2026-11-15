@@ -18,6 +18,9 @@ export const useExploreStore = create((set) => ({
   speed: 1, // index into SPEEDS
   cur: 0, // current visit (Play visits) or exposure (Every exposure)
   phase: 0, // Blink: 0 shows A, 1 shows B
+  overlays: { ring: true, gaia: false, wise: false, bad: false },
+  details: null, // Details panel: null = the default for the screen size (open on wide screens), else true/false
   set: (partial) => set(partial),
   togglePlay: () => set((s) => ({ playing: !s.playing })),
+  setOverlay: (k, on) => set((s) => ({ overlays: { ...s.overlays, [k]: on } })),
 }))

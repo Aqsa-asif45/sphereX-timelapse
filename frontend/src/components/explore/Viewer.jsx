@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { PIXEL_ARCSEC } from '../../lib/astro'
+import { drawOverlays, paintBad } from '../../lib/overlays'
 import { GAP as GAP_RGB, paintDiff, paintHeat, paintRgb, upscaleBicubic } from '../../lib/render'
-import { GAP, SCENE_GAP, ZMAX, gridOf, sceneSize, viewGeometry } from './viewGeometry'
+import { GAP, SCENE_GAP, ZMAX, gridOf, hitTest, sceneSize, viewGeometry } from './viewGeometry'
 
 const BG = [11, 14, 20]
 
@@ -29,6 +30,7 @@ function paintScene(scene, n, contrast, stretch) {
     else {
       for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) im.data.set([...GAP_RGB, 255], (off + j * Wd + i) * 4)
     }
+    if (p.bad) paintBad(im.data, off, p.bad, n, Wd)
   })
   return im
 }
@@ -36,7 +38,7 @@ function paintScene(scene, n, contrast, stretch) {
 /** Smooth display: bicubic upscale (cached, so blinking and panning do not redo it). */
 const smoothCache = []
 function smoothCanvas(scene, im, k, contrast, stretch) {
-  const refs = scene.panels.flatMap((p) => [p.data, p.rgb?.[0], p.rgb?.[1], p.rgb?.[2]])
+  const refs = scene.panels.flatMap((p) => [p.data, p.rgb?.[0], p.rgb?.[1], p.rgb?.[2], p.bad])
   const hit = smoothCache.find(
     (c) => c.k === k && c.contrast === contrast && c.stretch === stretch && c.refs.length === refs.length && c.refs.every((r, i) => r === refs[i]),
   )
@@ -66,6 +68,18 @@ function drawScene(x, scene, n, scale, { contrast, stretch, smooth }) {
     x.drawImage(c, 0, 0, im.width * scale, im.height * scale)
   }
   const { cols } = gridOf(scene.panels.length)
+  if (scene.overlay) {
+    // target ring and catalogue stars, clipped to each panel
+    scene.panels.forEach((_, k) => {
+      x.save()
+      x.translate((k % cols) * (n + GAP) * scale, Math.floor(k / cols) * (n + GAP) * scale)
+      x.beginPath()
+      x.rect(0, 0, n * scale, n * scale)
+      x.clip()
+      drawOverlays(x, scene.overlay, n, scale)
+      x.restore()
+    })
+  }
   x.font = '600 12px "IBM Plex Sans", sans-serif'
   scene.panels.forEach((p, k) => {
     const px = (k % cols) * (n + GAP) * scale
@@ -117,10 +131,32 @@ function drawScene(x, scene, n, scale, { contrast, stretch, smooth }) {
 }
 
 /**
+ * The hover read-out. It keeps its own state, so moving the pointer re-renders only this line, not the
+ * canvas. Its ref is the setter for the pixel under the pointer.
+ */
+function Readout({ ref, describe }) {
+  const [hit, setHit] = useState(null)
+  useImperativeHandle(ref, () => setHit, [])
+  const body = hit ? describe?.(hit) : null
+  return (
+    <div
+      className="pointer-events-none absolute bottom-2 left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-ctl border border-line-2 bg-bg-2/90 px-2.5 py-1.5 font-mono text-[11px] leading-snug text-ink-2"
+      aria-hidden="true"
+      data-testid="readout"
+    >
+      {body ?? <span className="text-ink-3">Point at a pixel for its value, noise, flags, RA and Dec · scroll to zoom · drag to pan</span>}
+    </div>
+  )
+}
+
+/**
  * The sky viewer: one canvas that draws one scene, or two side by side, with zoom (1–16x; buttons, scroll
  * wheel, + − 0 keys) and drag-to-pan. Zoom and pan survive every change of visit, band or mode.
+ * Each scene may carry an `overlay` (target ring, Gaia, WISE) and its panels a `bad` map (bad pixels).
+ * `describe(hit)` returns the hover read-out for a pixel.
  * @param {{ n:number, scenes:Array, zoom:number, onZoom:(z:number)=>void, resetKey:string, contrast:number,
- *   stretch:string, smooth:boolean, alt:string, caption?:React.ReactNode, children?:React.ReactNode }} p
+ *   stretch:string, smooth:boolean, alt:string, caption?:React.ReactNode, children?:React.ReactNode,
+ *   describe?:(hit:{scene:number, panel:number, gx:number, gy:number}) => React.ReactNode }} p
  */
 export default function Viewer(p) {
   const box = useRef(null)
@@ -129,6 +165,7 @@ export default function Viewer(p) {
   const [centre, setCentre] = useState(null)
   const [lastReset, setLastReset] = useState(p.resetKey)
   const drag = useRef(null)
+  const readout = useRef(null)
   if (lastReset !== p.resetKey) {
     setLastReset(p.resetKey) // a new target or field: centre the view again
     setCentre(null)
@@ -220,7 +257,11 @@ export default function Viewer(p) {
   }
   const onPointerMove = (e) => {
     const d = drag.current
-    if (!d) return
+    if (!d) {
+      const r = box.current.getBoundingClientRect()
+      readout.current?.(hitTest(e.clientX - r.left, e.clientY - r.top, g, dims, p.n))
+      return
+    }
     setCentre({
       cx: Math.min(dataW, Math.max(0, d.cx - (e.clientX - d.x) / g.scale)),
       cy: Math.min(dataH, Math.max(0, d.cy - (e.clientY - d.y) / g.scale)),
@@ -240,6 +281,7 @@ export default function Viewer(p) {
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onPointerLeave={() => readout.current?.(null)}
         data-testid="viewer"
       >
         <canvas
@@ -261,6 +303,7 @@ export default function Viewer(p) {
             Fit
           </button>
         </div>
+        {p.describe && <Readout ref={readout} describe={p.describe} />}
         {p.children}
       </div>
       {p.caption && <figcaption className="text-sm text-ink-2">{p.caption}</figcaption>}

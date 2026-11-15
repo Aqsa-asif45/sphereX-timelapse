@@ -26,7 +26,7 @@ export default function SearchBox({ initial = '', big = false, id = 'search' }) 
     <form
       role="search"
       onSubmit={submit}
-      className={`flex w-full gap-2 ${big ? 'max-w-xl' : 'max-w-md'}`}
+      className={`flex w-full min-w-0 gap-2 ${big ? 'max-w-xl' : 'max-w-md'}`}
     >
       <label htmlFor={id} className="sr-only">
         Star name or sky coordinates

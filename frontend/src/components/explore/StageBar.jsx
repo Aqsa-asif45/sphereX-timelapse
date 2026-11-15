@@ -13,7 +13,7 @@ const moon = (fov) => (fov / 31 >= 0.9 ? 'about the width of the full Moon' : `a
 const ctl = 'rounded-ctl border border-ctl bg-raised px-2 py-1 text-sm text-ink'
 
 /** Target and coverage, the four workspace modes, and the view settings. */
-export default function StageBar({ target, frames, visits, p, set, disabledColours }) {
+export default function StageBar({ target, frames, visits, p, set, disabledColours, detailsOpen, onDetails }) {
   const { contrast, stretch, smooth, set: setUi } = useExploreStore()
   const span = frames.length ? fmtSpan(frames[0].mjd, frames[frames.length - 1].mjd) : ''
   return (
@@ -25,6 +25,17 @@ export default function StageBar({ target, frames, visits, p, set, disabledColou
           <span className="num text-sm text-ink-2" data-testid="coverage">
             {plural(frames.length, 'exposure')} · {plural(visits.length, 'visit')} · {span}
           </span>
+        )}
+        {onDetails && p.q && (
+          <button
+            type="button"
+            onClick={onDetails}
+            aria-expanded={detailsOpen}
+            aria-controls="details-h"
+            className={`ml-auto self-center rounded-ctl border px-3 py-1 text-sm ${detailsOpen ? 'border-focus bg-focus/15 text-ink' : 'border-ctl text-ink-2 hover:bg-hover hover:text-ink'}`}
+          >
+            Details
+          </button>
         )}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

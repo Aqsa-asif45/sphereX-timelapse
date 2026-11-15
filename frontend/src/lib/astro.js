@@ -117,3 +117,31 @@ export function wlColor(lam) {
   }
   return `rgb(${STOPS[STOPS.length - 1][1]})`
 }
+
+// ── positions for people ────────────────────────────────────────────────
+
+const sexa = (v, digits) => {
+  const h = Math.floor(v)
+  const m = Math.floor((v - h) * 60)
+  let s = ((v - h) * 60 - m) * 60
+  s = +s.toFixed(digits)
+  return [h, m, s]
+}
+const pad = (v, w, digits = 0) => (digits ? v.toFixed(digits).padStart(w + digits + 1, '0') : String(v).padStart(w, '0'))
+/** RA in hours: 17h 57m 48.50s */
+export function fmtRa(ra) {
+  let [h, m, s] = sexa((((ra % 360) + 360) % 360) / 15, 2)
+  if (s >= 60) [s, m] = [0, m + 1]
+  if (m >= 60) [m, h] = [0, h + 1]
+  return `${pad(h % 24, 2)}h ${pad(m, 2)}m ${pad(s, 2, 2)}s`
+}
+/** Dec in degrees: +04° 41′ 36.2″ (with a real minus sign) */
+export function fmtDec(dec) {
+  let [d, m, s] = sexa(Math.abs(dec), 1)
+  if (s >= 60) [s, m] = [0, m + 1]
+  if (m >= 60) [m, d] = [0, d + 1]
+  return `${dec < 0 ? '−' : '+'}${pad(d, 2)}° ${pad(m, 2)}′ ${pad(s, 2, 1)}″`
+}
+/** "15 Aug 2025, 03:12 UTC" */
+export const fmtDateTime = (mjd) =>
+  `${fmtDate(mjd)}, ${mjdToDate(mjd).toISOString().slice(11, 16)} UTC`

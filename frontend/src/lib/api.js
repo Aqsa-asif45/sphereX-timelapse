@@ -55,6 +55,8 @@ export const observations = (params, signal) => json('/observations', { params, 
 export const catalog = (cat, params, signal) => json(`/catalogs/${cat}`, { params, signal })
 /** { id, x, y, r } -> raw detector values (for data checks) */
 export const pixels = (params, signal) => json('/pixels', { params, signal })
+/** id -> { names: {bit: name}, compressed }: the flag bit names written in that file */
+export const flagNames = (id, signal) => json('/flags', { params: { id }, signal })
 export const previewUrl = (slug) => `/api/previews/${encodeURIComponent(slug)}.gif`
 
 /**

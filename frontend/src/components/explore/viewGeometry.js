@@ -32,3 +32,27 @@ export function viewGeometry({ box, dataW, dataH, dpr, zoom, centre }) {
   const oy = Math.round((box[1] / 2 - cy * scale) * dpr) / dpr
   return { scale, devScale, fitDev, ox, oy }
 }
+
+/**
+ * Which scene, panel and grid pixel is under a point of the viewer (CSS px from its top-left corner).
+ * @returns {{scene:number, panel:number, gx:number, gy:number} | null}
+ */
+export function hitTest(mx, my, { ox, oy, scale }, dims, n) {
+  let x0 = ox
+  for (let k = 0; k < dims.length; k++) {
+    const [w, h] = dims[k]
+    const lx = (mx - x0) / scale
+    const ly = (my - oy) / scale
+    if (lx >= 0 && ly >= 0 && lx < w && ly < h) {
+      const col = Math.floor(lx / (n + GAP))
+      const row = Math.floor(ly / (n + GAP))
+      const gx = Math.floor(lx - col * (n + GAP))
+      const gy = Math.floor(ly - row * (n + GAP))
+      if (gx >= n || gy >= n) return null // in the gap between panels
+      const { cols } = gridOf(w > n ? 6 : 1)
+      return { scene: k, panel: row * cols + col, gx, gy }
+    }
+    x0 += (w + SCENE_GAP) * scale
+  }
+  return null
+}

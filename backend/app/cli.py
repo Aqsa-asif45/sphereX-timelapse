@@ -73,7 +73,8 @@ async def warm(args) -> None:
 
                 async def one(f, ra=ra, dec=dec, limit=limit):
                     async with limit:
-                        await get_cutout(client, sem, f["id"], ra, dec, n, PIXEL_ARCSEC, True, False)
+                        # the same layers the Explore page asks for at this field size (image, flags, noise)
+                        await get_cutout(client, sem, f["id"], ra, dec, n, PIXEL_ARCSEC, n <= 99, n <= 99)
 
                 results = await asyncio.gather(*(one(f) for f in res["frames"]), return_exceptions=True)
                 ok = sum(not isinstance(r, Exception) for r in results)

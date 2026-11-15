@@ -171,6 +171,7 @@ def test_path_tricks_in_ids_are_refused(id_):
     with TestClient(app) as c:
         assert c.get("/api/cutouts/one", params={"id": id_, "ra": 1, "dec": 0, "n": 39}).status_code == 400
         assert c.get("/api/pixels", params={"id": id_, "x": 5, "y": 5}).status_code == 400
+        assert c.get("/api/flags", params={"id": id_}).status_code == 400
 
 
 def test_bad_bodies_are_refused():
