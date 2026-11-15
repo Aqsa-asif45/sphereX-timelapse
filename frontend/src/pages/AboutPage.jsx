@@ -13,7 +13,7 @@ export default function AboutPage() {
         filled in or simulated.
       </p>
       <p className="text-sm text-ink-3">
-        The full methods, limits and credits are written in Phase 12.
+      
       </p>
     </main>
   )

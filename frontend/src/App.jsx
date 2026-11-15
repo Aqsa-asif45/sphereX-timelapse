@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import Footer from './components/layout/Footer'
 import ServerBanner from './components/layout/ServerBanner'
+import { GLASS_PAGES } from './components/layout/glass'
 import TopBar from './components/layout/TopBar'
 import { KEYS, load, save } from './lib/storage'
 import AboutPage from './pages/AboutPage'
@@ -12,6 +13,7 @@ import ExplorePage from './pages/ExplorePage'
 import HomePage from './pages/HomePage'
 import NotFoundPage from './pages/NotFoundPage'
 import SplashScreen from './pages/SplashScreen'
+import StartPage from './pages/StartPage'
 
 const prefersReducedMotion = () =>
   typeof window.matchMedia === 'function' &&
@@ -33,6 +35,7 @@ const page = {
 export function AppShell() {
   const location = useLocation()
   const embed = location.pathname === '/embed'
+  const glass = GLASS_PAGES.includes(location.pathname)
   // the splash shows on Home, once per browser session, and never for people who prefer reduced motion
   const [splash, setSplash] = useState(
     () =>
@@ -54,12 +57,18 @@ export function AppShell() {
       >
         Skip to content
       </a>
-      {!embed && <TopBar />}
-      {!embed && <ServerBanner />}
+      {!embed && (
+        // on the glass pages the bar floats over the full-screen hero; elsewhere it takes its own space
+        <div className={glass ? 'fixed inset-x-0 top-0 z-40' : undefined}>
+          <TopBar />
+          <ServerBanner />
+        </div>
+      )}
       <AnimatePresence mode="wait">
         <motion.div key={location.pathname} className="flex flex-1 flex-col" {...page}>
           <Routes location={location}>
             <Route path="/" element={<HomePage />} />
+            <Route path="/start" element={<StartPage />} />
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/embed" element={<EmbedPage />} />

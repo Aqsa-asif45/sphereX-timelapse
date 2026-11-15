@@ -35,6 +35,42 @@ function KV({ rows }) {
 const Note = ({ children, tone }) => <p className={`text-xs ${tone === 'warn' ? 'text-time' : 'text-ink-3'}`}>{children}</p>
 const mono = (s) => <span className="num font-mono text-[13px]">{s}</span>
 
+/** A few headline numbers as small tiles: the first thing to read. */
+function Stats({ items }) {
+  const shown = items.filter(Boolean)
+  if (!shown.length) return null
+  return (
+    <dl className="grid grid-cols-[repeat(auto-fit,minmax(88px,1fr))] gap-2">
+      {shown.map(([k, v]) => (
+        <div key={k} className="rounded-ctl border border-line bg-bg-2 px-2.5 py-1.5">
+          <dt className="text-[11px] text-ink-3">{k}</dt>
+          <dd className="num text-sm font-medium text-ink">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/** The exact figures (provenance, ids, coordinates), folded away until asked for. */
+function More({ children }) {
+  return (
+    <details className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-focus select-none [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="transition-transform group-open:rotate-90">
+          ›
+        </span>
+        Technical details
+      </summary>
+      <div className="mt-2 flex flex-col gap-2">{children}</div>
+    </details>
+  )
+}
+
+const shortSpan = (a, b) => {
+  const f = (mjd) => new Date((mjd - 40587) * 86400000).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+  return f(a) === f(b) ? f(a) : `${f(a)} – ${f(b)}`
+}
+
 /** The six sections of the Details panel (OV-6). */
 function InspectorBody(p) {
   const { target: t, result, frames, visits, cur, fov, n, center, cut, images, flagNames, irsa } = p

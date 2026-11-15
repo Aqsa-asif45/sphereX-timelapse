@@ -6,6 +6,8 @@
 .venv/Scripts/python -m app.cli warm                         pre-load the 5 challenge targets (search,
                                                              4' cutouts, home-page preview) for a fast demo
 .venv/Scripts/python -m app.cli warm "R Dra" "M 101" --fov 6 other targets or field size (arcmin)
+.venv/Scripts/python -m app.cli backdrop                     home-page backdrop layers (SPHEREx DR1 sky in
+                                                             false colour) into frontend/public/backdrop/
 """
 
 import argparse
@@ -16,7 +18,7 @@ import time
 import httpx
 
 from .config import PIXEL_ARCSEC, REF_MJD, USER_AGENT, settings
-from .services import indexer, skyindex
+from .services import backdrop, indexer, skyindex
 from .services.cutouts import get_cutout
 from .services.frames import position_at, search
 from .services.previews import build as build_preview
@@ -92,6 +94,17 @@ async def warm(args) -> None:
                 print(f"{name}: failed ({type(e).__name__}: {e})", flush=True)
 
 
+async def make_backdrop(args) -> None:
+    async with _client() as client:
+        meta = await backdrop.build(client)
+    for name, f in meta["files"].items():
+        print(f"{name}: {f['size'][0]} × {f['size'][1]} px, {f['bytes'] / 1000:.0f} KB")
+    for name, total in meta["total_bytes"].items():
+        print(f"{name}: {total / 1000:.0f} KB with the poster (WebP quality {meta['webp_quality'][name]})")
+    print("Stacked layers vs map:", meta["stack_check"])
+    print(f"Written to {backdrop.OUT_DIR}")
+
+
 def main(argv=None) -> int:
     # target names contain characters such as "−" (WISE 0855−0714) that a Windows console's default code page
     # cannot print; write UTF-8 instead of crashing
@@ -106,8 +119,10 @@ def main(argv=None) -> int:
     w = sub.add_parser("warm", help="pre-load targets (search, cutouts, previews) for a fast demo")
     w.add_argument("names", nargs="*", help="target names or coordinates (default: the 5 challenge targets)")
     w.add_argument("--fov", type=float, default=4, help="field of view in arcmin (default 4)")
+    sub.add_parser("backdrop", help="build the home-page backdrop layers from the SPHEREx all-sky map")
     args = p.parse_args(argv)
-    asyncio.run(build_index(args) if args.cmd == "build-index" else warm(args))
+    run = {"build-index": build_index, "warm": warm, "backdrop": make_backdrop}[args.cmd]
+    asyncio.run(run(args))
     return 0
 
 

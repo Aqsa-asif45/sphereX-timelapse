@@ -1,10 +1,12 @@
 import { motion } from 'motion/react'
 import { useEffect } from 'react'
+import SkyBackdrop from '../components/home/SkyBackdrop'
 
 const DURATION_MS = 2200
 
 /**
- * The first-visit intro: the logo ring draws itself, the name rises, then it fades into Home.
+ * The first-visit intro over the SPHEREx sky: the logo ring draws itself, the name rises, then it fades
+ * into the hero, which sits over the same sky.
  * Click, Enter, Escape or Space skips it. Home is already loaded underneath, so it never blocks.
  */
 export default function SplashScreen({ onDone }) {
@@ -31,8 +33,10 @@ export default function SplashScreen({ onDone }) {
       onClick={onDone}
       initial={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.5 } }}
-      className="fixed inset-0 z-50 grid cursor-pointer place-items-center bg-bg"
+      className="fixed inset-0 z-50 isolate grid cursor-pointer place-items-center bg-bg"
     >
+      {/* the same SPHEREx sky as the hero, still and darker, so fading out reveals the hero over it */}
+      <SkyBackdrop dim className="-z-10" />
       <div className="flex flex-col items-center gap-5 text-center">
         <svg width="96" height="96" viewBox="0 0 32 32" aria-hidden="true">
           <motion.circle
