@@ -4,12 +4,16 @@ A cleaner, more interactive first impression: a full-screen hero over the real S
 cursor movement, a glass navbar, one "Start your experience" button, and a features page that leads into
 every part of TimeLens. Built on top of the finished Phases 0–10; it does not change Explore.
 
+**Status:** H0 done · H1 next · H2–H5 not started.
+
 Phases are named H0–H5 so they do not clash with the SRS phases (11–14). Each ends like the SRS phases:
 tests pass → run it → check in a real browser → team review → next phase.
 
-## Decisions (settle in H0)
+## Decisions (agreed 2026-11-15)
 
-| # | Question | Recommended answer |
+All five were agreed by the team on 2026-11-15 and are recorded in [DECISIONS.md](DECISIONS.md).
+
+| # | Question | Agreed answer |
 |---|---|---|
 | 1 | Hero backdrop | **Option A:** a real SPHEREx all-sky image, exported once from NASA's DR1 all-sky map, split into depth layers that drift slowly and move with the cursor. Not the live Aladin globe (2.4 MB on the first screen), not a Three.js sphere (out of scope until parity, SRS 2.7) |
 | 2 | Where "Start your experience" goes | A new route **`/start`** (Back button works, the page can be shared), not a panel hidden inside Home |
@@ -51,11 +55,11 @@ tests pass → run it → check in a real browser → team review → next phase
 
 ---
 
-## H0: Decisions and docs (½ day)
+## H0: Decisions and docs (½ day) · done 2026-11-15
 
-- [ ] Agree the five decisions above
-- [ ] docs/DECISIONS.md: the backdrop choice, the `/start` route, the SRS 8.7 note
-- [ ] Update the page list (7 pages) and the parity table (SH-2 to SH-6 now on `/start`)
+- [x] Agree the five decisions above
+- [x] docs/DECISIONS.md: the backdrop choice, the `/start` route, the SRS 8.7 note
+- [x] Update the page list (7 pages) and the parity table (SH-2 to SH-6 now on `/start`): see "Routes after the redesign" and "Where today's Home features go" above
 
 **Done when:** the team has signed off the decisions and the docs say where every Home feature lives.
 
