@@ -9,18 +9,27 @@ import Inspector from './Inspector'
 vi.mock('../../lib/api', async (orig) => ({ ...(await orig()), catalog: vi.fn() }))
 
 const wrapper = ({ children }) => (
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider>
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    {children}
+  </QueryClientProvider>
 )
 
 describe('catalogue answers (OV-5)', () => {
   it('never shows a late answer for the previous field', async () => {
     const pending = []
-    api.catalog.mockImplementation((cat, params) => new Promise((resolve) => pending.push({ params, resolve })))
-    const { result, rerender } = renderHook(({ c }) => useCatalog('gaia', c, 4, true), { wrapper, initialProps: { c: [269.4, 4.7] } })
+    api.catalog.mockImplementation(
+      (cat, params) => new Promise((resolve) => pending.push({ params, resolve })),
+    )
+    const { result, rerender } = renderHook(({ c }) => useCatalog('gaia', c, 4, true), {
+      wrapper,
+      initialProps: { c: [269.4, 4.7] },
+    })
     await waitFor(() => expect(pending).toHaveLength(1))
     rerender({ c: [133.8, -7.2] }) // the user opened another target
     await waitFor(() => expect(pending).toHaveLength(2))
-    await act(async () => pending[0].resolve({ rows: [{ ra: 269.4, dec: 4.7, mag: 9 }], count: 1, source: 'old' }))
+    await act(async () =>
+      pending[0].resolve({ rows: [{ ra: 269.4, dec: 4.7, mag: 9 }], count: 1, source: 'old' }),
+    )
     expect(result.current.data).toBeUndefined() // the old answer is not used
     await act(async () => pending[1].resolve({ rows: [], count: 0, source: 'new' }))
     await waitFor(() => expect(result.current.data?.source).toBe('new'))
@@ -35,15 +44,45 @@ describe('catalogue answers (OV-5)', () => {
 })
 
 const FRAME = {
-  id: 'dr1/level2/x.fits', mjd: 61000.5, det: 3, lambda_um: 1.9, dlambda_um: 0.04, release: 'dr1', version: 'l2b-v27', week: '2025W33_2C',
-  obs: 321, exp: 1, file_url: 'https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/x.fits', collection: 'spherex_dr1',
-  processing_date: '2026-08-16', found_via: 'IRSA SIA2',
+  id: 'dr1/level2/x.fits',
+  mjd: 61000.5,
+  det: 3,
+  lambda_um: 1.9,
+  dlambda_um: 0.04,
+  release: 'dr1',
+  version: 'l2b-v27',
+  week: '2025W33_2C',
+  obs: 321,
+  exp: 1,
+  file_url: 'https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/x.fits',
+  collection: 'spherex_dr1',
+  processing_date: '2026-08-16',
+  found_via: 'IRSA SIA2',
 }
-const TARGET = { name: 'WISE 0855−0714', kind: 'brown dwarf', slug: 'wise-0855', ra: 133.786, dec: -7.244, epoch_mjd: 57388.5, pmra: -8118, pmdec: 673, source: 'checked', in_gaia: false }
+const TARGET = {
+  name: 'WISE 0855−0714',
+  kind: 'brown dwarf',
+  slug: 'wise-0855',
+  ra: 133.786,
+  dec: -7.244,
+  epoch_mjd: 57388.5,
+  pmra: -8118,
+  pmdec: 673,
+  source: 'checked',
+  in_gaia: false,
+}
 const props = {
   q: 'WISE 0855',
   target: TARGET,
-  result: { by_release: { dr1: 1 }, sources: ['sia2'], exposures_available: 1, exposures_kept: 1, files_failed: 0, retrieved_utc: '2026-11-15T08:00:00Z', errors: [] },
+  result: {
+    by_release: { dr1: 1 },
+    sources: ['sia2'],
+    exposures_available: 1,
+    exposures_kept: 1,
+    files_failed: 0,
+    retrieved_utc: '2026-11-15T08:00:00Z',
+    errors: [],
+  },
   frames: [FRAME],
   visits: [{ i: 0, frames: [FRAME], mjd: FRAME.mjd, start: FRAME.mjd, end: FRAME.mjd }],
   cur: { label: 'Exposure 1 of 1', sub: '15 Nov 2025', mjd: FRAME.mjd, frames: [FRAME] },
@@ -51,7 +90,16 @@ const props = {
   n: 39,
   center: [133.78, -7.243],
   cut: { loaded: 1, failed: 0, total: 1, quality: true, version: 1 },
-  images: new Map([[FRAME.id, { image: new Float32Array(39 * 39), flags: new Int32Array(39 * 39).fill(1 << 21), variance: new Float32Array(39 * 39) }]]),
+  images: new Map([
+    [
+      FRAME.id,
+      {
+        image: new Float32Array(39 * 39),
+        flags: new Int32Array(39 * 39).fill(1 << 21),
+        variance: new Float32Array(39 * 39),
+      },
+    ],
+  ]),
   flagNames: { dr1: { 21: 'SOURCE' } },
   irsa: true,
 }
@@ -76,14 +124,24 @@ describe('Details panel (OV-6, OV-7)', () => {
 
   it('has the six sections, with provenance, flags by the file’s name and the brown-dwarf note', () => {
     renderInspector({ wide: true })
-    for (const h of ['Target', 'On screen', 'Data quality', 'Where this comes from', 'Sky around it', 'Share']) {
+    for (const h of [
+      'Target',
+      'On screen',
+      'Data quality',
+      'Where this comes from',
+      'Sky around it',
+      'Share',
+    ]) {
       expect(screen.getByRole('heading', { name: h })).toBeInTheDocument()
     }
     expect(screen.getByTestId('details').dataset.layout).toBe('side')
-    expect(screen.getByText(/not a star, and is not in Gaia/)).toBeInTheDocument()
+    expect(screen.getByText(/Not in Gaia: brown dwarfs are too faint/)).toBeInTheDocument()
     expect(screen.getByText(/SOURCE · 1\/1/)).toBeInTheDocument()
     expect(screen.getByText('1.900 µm ± 0.020')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Original FITS/ })).toHaveAttribute('href', FRAME.file_url)
+    expect(screen.getByRole('link', { name: /Original FITS/ })).toHaveAttribute(
+      'href',
+      FRAME.file_url,
+    )
     expect(screen.getByText('spherex_dr1')).toBeInTheDocument()
     expect(screen.getByText(/IRSA's image search/)).toBeInTheDocument()
   })
