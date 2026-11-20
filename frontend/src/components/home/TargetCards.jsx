@@ -21,7 +21,7 @@ export default function TargetCards() {
           Five targets from the challenge
         </h2>
         <p className="mt-1.5 text-ink-2">
-          Three that move, two that change brightness. Each preview is built from that target&apos;s real SPHEREx
+          Three that move, two that change brightness. Each preview is built from that target’s real SPHEREx
           visits.
         </p>
       </motion.div>

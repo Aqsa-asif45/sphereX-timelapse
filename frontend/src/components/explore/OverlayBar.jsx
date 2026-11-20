@@ -1,4 +1,5 @@
 import { OVERLAY_COLOURS } from '../../lib/overlays'
+import { BTN } from '../../lib/ui'
 import { useExploreStore } from '../../store/exploreStore'
 
 /** A small key so each overlay is named, not shown by colour alone. */
@@ -17,7 +18,7 @@ function status(q, what) {
     return (
       <span className="text-danger">
         {q.error.message}{' '}
-        <button type="button" className="text-focus underline underline-offset-2" onClick={() => q.refetch()}>
+        <button type="button" className={`${BTN.small} ml-1`} onClick={() => q.refetch()}>
           Try again
         </button>
       </span>

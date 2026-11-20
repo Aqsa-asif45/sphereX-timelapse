@@ -19,6 +19,9 @@ What the script does to them, and nothing else:
    with `mix-blend-mode: plus-lighter` gives the map again.
 3. Saves WebP files for desktop (2400 px), phones (1200 px, a 2 × 2 average of the desktop map) and a
    tiny blurred poster for the first paint, and checks the stacked files against the map.
+4. Holes where NASA masked a saturated star are made transparent in the faint layer (soft-edged, about
+   2 px), so they show as "no data" over the page's dark background instead of hard black bars. Nothing
+   is filled in: the edge only hides a thin rim of real pixels, it never adds values.
 """
 
 import json
@@ -31,7 +34,7 @@ import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from PIL import Image, ImageFilter
-from scipy.ndimage import binary_dilation, binary_opening, median_filter
+from scipy.ndimage import binary_dilation, binary_opening, gaussian_filter, median_filter
 
 from .healpix import ang2nest, ang2xyf
 
@@ -48,6 +51,7 @@ SUPERSAMPLE = 3
 STAR_BOX = 9  # px, median window for the local sky level (desktop scale)
 CHANNELS = {"red": 90, "green": 44, "blue": 16}  # HiPS cube frames (0-based): 4.6, 2.1 and 1.1 µm
 GAIN_PERCENTILE = 99.5
+GAP_SOFTEN_PX = 1.5  # Gaussian sigma of the soft edge around masked holes (desktop pixels)
 HOLE_REACH = 31  # px: a masked hole is a 0 where the median of this box (same colour) is above HOLE_LEVEL
 HOLE_LEVEL = 60  # (30 also catches dark specks in the 4.6 and 2.1 µm sky; 60 keeps only real holes)
 STAR_CUT = 24  # grey levels above the local sky level that count as a bright star (10 lets noise in)
@@ -117,8 +121,14 @@ def downsample2(img: np.ndarray) -> np.ndarray:
 
 def webp(img: np.ndarray, quality: int) -> bytes:
     buf = BytesIO()
-    Image.fromarray(img, "RGB").save(buf, "WEBP", quality=quality, method=6)
+    Image.fromarray(img, "RGBA" if img.shape[2] == 4 else "RGB").save(buf, "WEBP", quality=quality, method=6)
     return buf.getvalue()
+
+
+def gap_alpha(hole_fraction: np.ndarray, soften: float) -> np.ndarray:
+    """Opacity (uint8) that is 0 over masked holes and fades to 255 over about `soften` px around them."""
+    soft = gaussian_filter(hole_fraction, soften) if soften else hole_fraction
+    return np.rint(np.clip(1 - 1.6 * np.maximum(soft, hole_fraction), 0, 1) * 255).astype(np.uint8)
 
 
 def decode(data: bytes) -> np.ndarray:
@@ -151,7 +161,11 @@ async def build(client: httpx.AsyncClient, out_dir: Path = OUT_DIR, log=print) -
     log(f"Blanked {int(holes.sum())} masked pixels ({holes.mean():.3%}) in all colours")
 
     log(f"Resampling to a {DESKTOP_W} × {DESKTOP_W // 2} galactic map ...")
-    rendered = render_galactic(allsky, DESKTOP_W)
+    # the hole mask rides along as a fourth channel, so it lands exactly where the holes do
+    rendered4 = render_galactic(np.concatenate([allsky, (holes * 255).astype(np.uint8)[..., None]], axis=2), DESKTOP_W)
+    rendered, hole_fraction = rendered4[..., :3], rendered4[..., 3] / 255
+    alpha_desk = gap_alpha(hole_fraction, GAP_SOFTEN_PX)
+    alpha_phone = downsample2(alpha_desk)
     level = np.percentile(rendered, GAIN_PERCENTILE, axis=(0, 1))
     gains = level.max() / np.maximum(level, 1)  # one constant per colour: balance only, no re-stretch
     desk = np.rint(np.clip(rendered * gains, 0, 255)).astype(np.uint8)
@@ -168,9 +182,11 @@ async def build(client: httpx.AsyncClient, out_dir: Path = OUT_DIR, log=print) -
 
     # per size, the highest quality that keeps its two layers (+ the poster) within budget
     files, quality, totals = {"sky-poster.webp": poster}, {}, {}
+    alphas = {"desktop": alpha_desk, "phone": alpha_phone}
     for name, (_, (faint, stars)) in layers.items():
+        faint_a = np.dstack([faint, alphas[name]])  # masked holes see through to the page: no data, not black
         for q in range(80, 29, -5):
-            pair = {f"sky-{name}-faint.webp": webp(faint, q), f"sky-{name}-stars.webp": webp(stars, q)}
+            pair = {f"sky-{name}-faint.webp": webp(faint_a, q), f"sky-{name}-stars.webp": webp(stars, q)}
             total = sum(map(len, pair.values())) + len(poster)
             if total <= BUDGET[name]:
                 break
@@ -186,6 +202,8 @@ async def build(client: httpx.AsyncClient, out_dir: Path = OUT_DIR, log=print) -
         + " / ".join(f"{waves[f]:.1f}" for f in CHANNELS.values())
         + " µm as red / green / blue (DR1)",
         "use": "decoration only (home hero); never for measurements",
+        "gaps": f"NASA's masked holes are transparent in the faint layer (soft edge, sigma {GAP_SOFTEN_PX} px): "
+        "no data is shown there and nothing is filled in",
         "source": {
             "title": props.get("obs_title"),
             "ivoid": props.get("creator_did"),

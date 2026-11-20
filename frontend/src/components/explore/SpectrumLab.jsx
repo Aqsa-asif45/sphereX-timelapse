@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fmtDateTime, fmtMonth, gridToSky, plural, positionAt, wlColor } from '../../lib/astro'
 import { skyToGrid } from '../../lib/overlays'
 import { APERTURE_PX, FEATURES, download, fmtFlux, lightCurve, timeColour } from '../../lib/photometry'
+import { BTN } from '../../lib/ui'
 import Chart from './Chart'
 
 const fmtDay = (mjd) => fmtDateTime(mjd).split(',')[0]
@@ -150,7 +151,7 @@ export default function SpectrumLab({ q, target, frames, visits, engine, version
           {probe ? (
             <>
               Measured at the point you clicked{probeSky && <span className="num font-mono"> ({probeSky[0].toFixed(4)}°, {probeSky[1].toFixed(4)}°)</span>}.{' '}
-              <button type="button" className="text-focus underline underline-offset-2" onClick={() => setProbe(null)}>
+              <button type="button" className={`${BTN.small} ml-1 align-middle`} onClick={() => setProbe(null)}>
                 Back to the target
               </button>
             </>
@@ -215,11 +216,11 @@ export default function SpectrumLab({ q, target, frames, visits, engine, version
             <span className="text-ink-2">
               Visit {selPt.v + 1} · Band {selPt.f.det} · {fmtDateTime(selPt.f.mjd)} · {selPt.f.release.toUpperCase()}
             </span>
-            <button type="button" className="text-focus underline underline-offset-2" onClick={() => onShowExposure(selPt.f)}>
+            <button type="button" className={BTN.small} onClick={() => onShowExposure(selPt.f)}>
               Show this exposure
             </button>
-            <a className="text-focus underline underline-offset-2" href={selPt.f.file_url} target="_blank" rel="noopener noreferrer">
-              Original file
+            <a className={BTN.small} href={selPt.f.file_url} target="_blank" rel="noopener noreferrer">
+              Original file <span aria-hidden="true">↗</span>
             </a>
           </div>
         ) : (

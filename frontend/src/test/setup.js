@@ -22,3 +22,6 @@ if (typeof globalThis.IntersectionObserver === 'undefined') {
     }
   }
 }
+
+// jsdom does not scroll: the app's scroll memory (App.jsx) calls scrollTo on every page change
+window.scrollTo = () => {}

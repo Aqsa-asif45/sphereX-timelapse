@@ -24,13 +24,16 @@ export default function Footer() {
               {c}
             </span>
           ))}
-          . Real data, no simulated fills.
+          <span aria-hidden="true" className="px-1.5 text-line-2">
+            ·
+          </span>
+          <span className="text-ink-2">Real NASA data, nothing simulated</span>
         </p>
         <Link
           to="/about"
-          className="shrink-0 text-focus underline underline-offset-2 hover:brightness-110"
+          className="shrink-0 rounded-ctl px-2 py-0.5 text-ink-2 transition hover:bg-hover hover:text-ink"
         >
-          Methods
+          Methods and credits →
         </Link>
       </div>
     </footer>

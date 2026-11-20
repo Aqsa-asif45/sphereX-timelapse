@@ -14,6 +14,9 @@ import { useEffect, useRef, useState } from 'react'
 
 export const BACKDROP_LABEL =
   'SPHEREx all-sky map in false colour (4.6, 2.1, 1.1 µm as red, green, blue; DR1)'
+/** The short version shown on the page; the long one is on hover. */
+export const BACKDROP_SHORT =
+  'SPHEREx all-sky map (NASA/IPAC) · for looking only · dark gaps: no data'
 
 const DIR = '/backdrop/'
 const srcSet = (layer) =>
@@ -115,7 +118,9 @@ export default function SkyBackdrop({ dim = false, className = '' }) {
   }, [dim])
 
   const img =
-    'absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-out'
+    // which part of the sky shows: chosen on the real map to avoid NASA's masked holes (phones: none at all;
+    // portrait tablets: one small one); wide screens zoom in instead (below)
+    'absolute inset-0 h-full w-full object-cover object-[32%_50%] sm:object-[40%_50%] lg:object-center transition-opacity duration-1000 ease-out'
   return (
     <div
       ref={root}
@@ -124,34 +129,37 @@ export default function SkyBackdrop({ dim = false, className = '' }) {
     >
       {/* a little larger than the box, so drifting and tilting never show an edge */}
       <div ref={stack} className="absolute -inset-[6%] will-change-transform">
-        <img
-          src={`${DIR}sky-poster.webp`}
-          alt=""
-          className={`${img} scale-105 blur-md`}
-          decoding="async"
-        />
-        <img
-          ref={faint}
-          srcSet={srcSet('faint')}
-          sizes="112vw"
-          src={`${DIR}sky-desktop-faint.webp`}
-          alt=""
-          decoding="async"
-          fetchPriority="high"
-          onLoad={() => setLoaded((s) => ({ ...s, faint: true }))}
-          className={`${img} will-change-transform ${loaded.faint ? 'opacity-100' : 'opacity-0'}`}
-        />
-        <img
-          ref={stars}
-          srcSet={srcSet('stars')}
-          sizes="112vw"
-          src={`${DIR}sky-desktop-stars.webp`}
-          alt=""
-          decoding="async"
-          onLoad={() => setLoaded((s) => ({ ...s, stars: true }))}
-          style={{ mixBlendMode: 'plus-lighter' }}
-          className={`${img} will-change-transform ${loaded.stars && loaded.faint ? 'opacity-100' : 'opacity-0'}`}
-        />
+        {/* wide screens: 1.25× zoom, with the galactic centre (and its masked holes) behind the dark text side */}
+        <div className="absolute inset-0 lg:origin-[104%_50%] lg:scale-125">
+          <img
+            src={`${DIR}sky-poster.webp`}
+            alt=""
+            className={`${img} scale-105 blur-md ${loaded.faint ? 'opacity-0' : 'opacity-100'}`}
+            decoding="async"
+          />
+          <img
+            ref={faint}
+            srcSet={srcSet('faint')}
+            sizes="112vw"
+            src={`${DIR}sky-desktop-faint.webp`}
+            alt=""
+            decoding="async"
+            fetchPriority="high"
+            onLoad={() => setLoaded((s) => ({ ...s, faint: true }))}
+            className={`${img} will-change-transform ${loaded.faint ? 'opacity-100' : 'opacity-0'}`}
+          />
+          <img
+            ref={stars}
+            srcSet={srcSet('stars')}
+            sizes="112vw"
+            src={`${DIR}sky-desktop-stars.webp`}
+            alt=""
+            decoding="async"
+            onLoad={() => setLoaded((s) => ({ ...s, stars: true }))}
+            style={{ mixBlendMode: 'plus-lighter' }}
+            className={`${img} will-change-transform ${loaded.stars && loaded.faint ? 'opacity-100' : 'opacity-0'}`}
+          />
+        </div>
       </div>
       {/* dark veil: keeps hero text at 8:1 or more and the navbar at 5:1 or more over the bright galactic
           centre (NF-10, measured on the real map at 390, 1024 and 1440 px); phones darker, text spans the width */}

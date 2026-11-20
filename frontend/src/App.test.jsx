@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { MemoryRouter } from 'react-router'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from './App.jsx'
+import { useGalaxy } from './store/galaxyStore'
+import { useIntro } from './store/introStore'
 
 vi.mock('./lib/sky', async (orig) => ({
   ...(await orig()),
@@ -44,14 +46,98 @@ function renderAt(path) {
 
 beforeEach(() => {
   sessionStorage.setItem('timelens.splashSeen', 'true') // most tests are not about the splash
+  localStorage.setItem('timelens.introSeen', 'true') // or Nova's intro
   serverUp()
 })
 afterEach(() => {
   vi.unstubAllGlobals()
   sessionStorage.clear()
+  localStorage.clear()
+  useIntro.setState({ open: false })
+  useGalaxy.setState({ to: null })
+})
+
+describe("Nova's intro", () => {
+  // the intro fades in and unfolds in stages: give the waits more room on a busy machine
+  beforeAll(() => configure({ asyncUtilTimeout: 5000 }))
+  afterAll(() => configure({ asyncUtilTimeout: 1000 }))
+
+  it('plays once on a first visit to Home; Skip closes it and remembers', async () => {
+    localStorage.removeItem('timelens.introSeen')
+    renderAt('/')
+    const intro = await screen.findByTestId('intro')
+    expect(within(intro).getByRole('heading', { name: /Nova’s infrared voyage/ })).toBeInTheDocument()
+    fireEvent.click(within(intro).getByRole('button', { name: 'Skip intro' }))
+    await waitFor(() => expect(screen.queryByTestId('intro')).toBeNull())
+    expect(localStorage.getItem('timelens.introSeen')).toBe('true')
+  })
+
+  it('steps through the five targets with real previews, and ends on /start', async () => {
+    localStorage.removeItem('timelens.introSeen')
+    renderAt('/')
+    const intro = await screen.findByTestId('intro')
+    const next = () => fireEvent.click(within(screen.getByTestId('intro')).getByRole('button', { name: /Next/ }))
+    next()
+    expect(await within(intro).findByRole('heading', { name: 'Barnard’s Star' })).toBeInTheDocument()
+    expect(within(intro).getByAltText(/real SPHEREx images/)).toHaveAttribute('src', '/api/previews/barnard.gif')
+    fireEvent.keyDown(document, { key: 'ArrowLeft' })
+    expect(await within(intro).findByRole('heading', { name: /Nova’s infrared voyage/ })).toBeInTheDocument()
+    for (let i = 0; i < 6; i++) next()
+    fireEvent.click(await within(intro).findByRole('button', { name: /Start exploring/ }))
+    await waitFor(() => expect(screen.queryByTestId('intro')).toBeNull())
+    expect(screen.getByTestId('galaxy-zoom')).toBeInTheDocument() // the zoom into the galaxy, then /start
+    expect(await screen.findByRole('heading', { level: 1, name: /start your experience/i })).toBeInTheDocument()
+  }, 20_000) // seven scenes, then the 2.3 s zoom
+
+  it('Esc skips it, and it does not come back by itself', async () => {
+    localStorage.removeItem('timelens.introSeen')
+    const first = renderAt('/')
+    await screen.findByTestId('intro')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByTestId('intro')).toBeNull())
+    first.unmount()
+    renderAt('/')
+    await screen.findByRole('button', { name: /Watch Nova’s intro/ })
+    expect(screen.queryByTestId('intro')).toBeNull()
+  })
+
+  it('Start your experience zooms into the galaxy, then opens /start; Esc skips the zoom', async () => {
+    renderAt('/')
+    fireEvent.click(await screen.findByRole('link', { name: /start your experience/i }))
+    expect(await screen.findByTestId('galaxy-zoom')).toBeInTheDocument()
+    expect(screen.getByText('Illustration · click or press Esc to skip')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(await screen.findByRole('heading', { level: 1, name: /start your experience/i })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByTestId('galaxy-zoom')).toBeNull())
+  })
+
+  it('can be replayed from Home', async () => {
+    renderAt('/')
+    fireEvent.click(await screen.findByRole('button', { name: /Watch Nova’s intro/ }))
+    expect(await screen.findByTestId('intro')).toBeInTheDocument()
+  })
 })
 
 describe('routes', () => {
+  it('drops a trailing slash, so /start/ is the /start page with its glass top bar', async () => {
+    renderAt('/start/')
+    // a redirect, then the page fades in: allow for a busy machine
+    expect(await screen.findByRole('heading', { level: 1, name: /start your experience/i }, { timeout: 5000 })).toBeInTheDocument()
+  })
+
+  it('an empty Explore offers the five targets and all features, not a dead end', async () => {
+    renderAt('/explore')
+    expect(await screen.findByRole('link', { name: 'Barnard’s Star'.replace('’', "'") })).toHaveAttribute('href', "/explore?q=Barnard's%20Star")
+    expect(screen.getByRole('link', { name: 'See all features' })).toHaveAttribute('href', '/start')
+  })
+
+  it("the top bar's Explore link returns to the last target of this session", async () => {
+    sessionStorage.setItem('timelens.lastExplore', JSON.stringify('?q=Vega&mode=sky'))
+    renderAt('/about')
+    const nav = (await screen.findAllByRole('navigation', { name: 'Main' }))[0]
+    expect(within(nav).getByRole('link', { name: 'Explore' })).toHaveAttribute('href', '/explore?q=Vega&mode=sky')
+  })
+
   it('opens Home', async () => {
     renderAt('/')
     expect(await screen.findByRole('heading', { name: /find what moves/i })).toBeInTheDocument()

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useSearchParams } from 'react-router'
+import { KEYS, load } from '../../lib/storage'
 import SearchBox from '../search/SearchBox'
 import Logo from './Logo'
 import { GLASS_PAGES } from './glass'
@@ -15,9 +16,12 @@ const LINKS = [
 
 /** Logo, search (on Explore), Explore and Methods links (a menu on phones), and the server status dot. */
 export default function TopBar() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const [params] = useSearchParams()
   const onExplore = pathname === '/explore'
+  // Explore opens the target you were last looking at (this session), or stays on the current one
+  const exploreTo = `/explore${onExplore ? search : load(KEYS.lastExplore, '', 'session')}`
+  const links = LINKS.map((l) => (l.to === '/explore' ? { ...l, to: exploreTo } : l))
   const glass = GLASS_PAGES.includes(pathname)
   // the phone menu remembers the page it was opened on, so it closes by itself after moving to another page
   const [openOn, setOpenOn] = useState(null)
@@ -53,7 +57,12 @@ export default function TopBar() {
           : 'border-line bg-bg'
       }`}
     >
-      <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="SPHEREx TimeLens home">
+      <Link
+        to="/"
+        className="flex shrink-0 items-center gap-2 rounded-ctl transition hover:opacity-80"
+        aria-label="SPHEREx TimeLens home"
+        title="Home"
+      >
         <Logo size={24} />
         <span className="hidden font-medium tracking-tight sm:inline">
           <b className="font-semibold">SPHEREx</b> TimeLens
@@ -64,8 +73,8 @@ export default function TopBar() {
       )}
       <span className="flex-1" />
       <nav aria-label="Main" className="hidden items-center gap-1 sm:flex">
-        {LINKS.map((l) => (
-          <NavLink key={l.to} to={l.to} className={navClass}>
+        {links.map((l) => (
+          <NavLink key={l.label} to={l.to} className={navClass}>
             {l.label}
           </NavLink>
         ))}
@@ -96,9 +105,9 @@ export default function TopBar() {
           aria-label="Menu"
           className="absolute top-full right-2 left-2 z-50 mt-2 flex flex-col gap-1 rounded-panel border border-line-2 bg-bg-2/95 p-2 shadow-xl backdrop-blur-md sm:hidden"
         >
-          {LINKS.map((l) => (
+          {links.map((l) => (
             <NavLink
-              key={l.to}
+              key={l.label}
               to={l.to}
               className={({ isActive }) =>
                 `rounded-ctl px-3 py-2.5 text-base ${isActive ? 'bg-raised text-ink' : 'text-ink-2 hover:bg-hover hover:text-ink'}`

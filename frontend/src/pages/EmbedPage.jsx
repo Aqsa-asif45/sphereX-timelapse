@@ -1,5 +1,6 @@
 import { Link, useLocation, useSearchParams } from 'react-router'
 import { useTitle } from '../hooks/useTitle'
+import { BTN } from '../lib/ui'
 
 /** The viewer alone, for iframes on other sites (no top bar, no details panel). Phase 11 fills it in. */
 export default function EmbedPage() {
@@ -18,9 +19,9 @@ export default function EmbedPage() {
       <Link
         to={`/explore${search}`}
         target="_blank"
-        className="text-sm text-focus underline underline-offset-2"
+        className={BTN.secondary}
       >
-        Open in TimeLens
+        Open in TimeLens <span aria-hidden="true">↗</span>
       </Link>
     </main>
   )

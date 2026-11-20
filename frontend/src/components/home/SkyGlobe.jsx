@@ -111,7 +111,7 @@ export default function SkyGlobe() {
             The whole sky, as SPHEREx sees it
           </h2>
           <p className="mt-1.5 max-w-2xl text-ink-2">
-            NASA&apos;s SPHEREx DR1 all-sky map. Drag to look around, scroll to zoom, and click a target to open its
+            NASA’s SPHEREx DR1 all-sky map. Drag to look around, scroll to zoom, and click a target to open its
             images.
           </p>
         </div>

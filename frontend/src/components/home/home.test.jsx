@@ -62,8 +62,9 @@ describe('Home', () => {
       'href',
       '/start',
     )
-    expect(screen.getByText(/SPHEREx all-sky map in false colour/)).toBeInTheDocument()
-    expect(screen.getByText(/for looking only/i)).toBeInTheDocument()
+    // a short label on the page, the full description (wavelengths, release, gaps) on hover
+    const label = screen.getByText(/SPHEREx all-sky map \(NASA\/IPAC\) · for looking only · dark gaps: no data/)
+    expect(label).toHaveAttribute('title', expect.stringMatching(/false colour.*4\.6, 2\.1, 1\.1 µm.*Never used for measurements/))
   })
 
   it('keeps search on /start, not in the hero (SR-5)', () => {

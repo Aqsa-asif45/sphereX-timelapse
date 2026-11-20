@@ -33,6 +33,8 @@ export function save(key, value, kind = 'local') {
 
 export const KEYS = {
   splashSeen: 'timelens.splashSeen', // session
+  introSeen: 'timelens.introSeen', // Nova's intro watched or skipped once
+  lastExplore: 'timelens.lastExplore', // session: the last /explore view, for the Explore link
   seenHelp: 'timelens.seenHelp',
   marks: 'timelens.marks',
   reviews: 'timelens.reviews',

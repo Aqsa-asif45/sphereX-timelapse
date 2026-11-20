@@ -1,5 +1,6 @@
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router'
 import ActivityLog from '../components/explore/ActivityLog'
 import Inspector from '../components/explore/Inspector'
 import LoadProgress from '../components/explore/LoadProgress'
@@ -25,7 +26,9 @@ import { idsKey } from '../lib/engine'
 import { marksAsCandidates, reviewKey, toCandidates } from '../lib/movers'
 import { WIDE_PX, badFraction, differenceOf, flagName, fmtMJy, isBadBit, readPixel, signed } from '../lib/overlays'
 import { combine } from '../lib/render'
+import { BTN } from '../lib/ui'
 import { KEYS, load, save } from '../lib/storage'
+import { SKY_TARGETS } from '../lib/targets'
 import { VIEW_LABEL, bandOf, combineItem, deepItem, exposureItem, inBand, panelsFor, visitItem } from '../lib/scenes'
 import { useActivity } from '../store/activityStore'
 import { SPEEDS, useExploreStore } from '../store/exploreStore'
@@ -144,6 +147,10 @@ function readoutFor(hit, { scenes, images, center, n, quality, flagNames }) {
 /** The TimeLens workspace (Phases 6–8: Sky and Time modes, overlays and details). */
 export default function ExplorePage() {
   const [p, set] = useExploreParams()
+  const { search } = useLocation()
+  useEffect(() => {
+    if (p.q) save(KEYS.lastExplore, search, 'session')
+  }, [p.q, search])
   useTitle(p.q || 'Explore')
   const target = useTarget(p.q)
   const t = Number.isFinite(target.data?.ra) ? target.data : null // ignore an answer without a position
@@ -397,7 +404,22 @@ export default function ExplorePage() {
 
   // ── layout ──
   let body
-  if (!p.q) body = <Notice>Search for a star name or coordinates above, or pick a target on the home page.</Notice>
+  if (!p.q)
+    body = (
+      <Notice>
+        <p>Search for a star name or coordinates above, or open one of the five challenge targets:</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {SKY_TARGETS.map((x) => (
+            <Link key={x.slug} to={`/explore?q=${encodeURIComponent(x.name)}`} className={BTN.small}>
+              {x.name}
+            </Link>
+          ))}
+        </div>
+        <Link to="/start" className={`${BTN.secondary} mt-4`}>
+          See all features
+        </Link>
+      </Notice>
+    )
   else if (target.isPending) body = <Notice>Looking up “{p.q}”…</Notice>
   else if (target.isError) body = <Notice tone="error" onRetry={() => target.refetch()}>{target.error.message}</Notice>
   else if (obs.status === 'error') body = <Notice tone="error" onRetry={obs.retry}>The search failed: {obs.error}</Notice>
@@ -443,11 +465,10 @@ export default function ExplorePage() {
           {p.mode === 'sky' && (
             <p className="text-sm text-ink-2">
               The deepest picture of this patch: {plural(frames.length, 'exposure')} from {plural(nv, 'visit')} added together, so faint things show
-              up. Moving stars smear into short streaks: switch to{' '}
-              <button type="button" className="text-focus underline underline-offset-2" onClick={() => set({ mode: 'time' })}>
-                Time
-              </button>{' '}
-              to watch them move.
+              up. Moving stars smear into short streaks: switch to Time to watch them move.{' '}
+              <button type="button" className={`${BTN.small} ml-1 align-middle`} onClick={() => set({ mode: 'time' })}>
+                Open Time mode
+              </button>
             </p>
           )}
           {time && (

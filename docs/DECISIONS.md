@@ -75,3 +75,19 @@ Append-only. Newest at the bottom.
 - **The whole-sky globe is a slide on `/start`,** loaded only when it is reached (SH-3).
 - **SRS 8.7 "Never animate the sky image itself" applies to the science viewer.** The home backdrop is decoration made from real data and may drift (transform and opacity only); it stands still with "reduce motion" (NF-11) and is never used for measurements (science rule 6).
 - **Old viewer links `/?embed=1&q=...` redirect to `/embed?q=...`** (part of EX-6).
+
+## 2026-11-20: Nova's intro (cutscenes after the splash)
+- **What:** Nova, an original space-trooper mascot drawn and animated in code (`frontend/src/components/intro/`), visits the five challenge targets in 7 short scenes (launch, the five targets, "Your turn" → `/start`). Each target scene shows its real SPHEREx preview in Nova's scanner, labelled as real data; Nova and the ship are labelled as illustration.
+- **When:** after the splash on a first visit to Home (`timelens.introSeen` in local storage), never for "reduce motion"; "Watch Nova's intro" on Home replays it. Skip, Esc, Back/Next, arrow keys, Pause; plays by itself at 6.5 s per scene.
+- **Science:** the story says two targets are brown dwarfs, not stars; WISE 0855 is "roughly as cold as a winter day on Earth" (estimates span about −25 °C to +10 °C, so not "colder than ice"); the last line says finds are evidence, not discoveries.
+- **Background (changed 2026-11-20):** a decorative canvas starfield (drifting, twinkling, a warp jump between targets) instead of the SPHEREx all-sky map, so drawn stars never sit on top of real data; the intro says the stars are illustrations. Scenes unfold in stages (fade in 1.2 s, Nova, words, scanner) and last 8 s. Still with "reduce motion".
+- **Rejected:** illustrations from a designer (none available); playing it every session (35 s each time is too long).
+
+## 2026-11-20: Galaxy zoom before /start
+- **What:** "Start your experience" (Home) and "Start exploring" (end of Nova's intro) play a 2.3 s zoom into a spiral galaxy drawn in code (`GalaxyZoom.jsx`), then open `/start`. A click, Esc, Enter or Space goes straight on; "reduce motion" skips it; Ctrl/Shift/middle clicks still open the link normally.
+- **Science:** the galaxy is an illustration, not SPHEREx data, and is labelled "Illustration" on screen.
+
+## 2026-11-20: Home backdrop gaps and framing
+- **Gaps:** NASA's masked holes (very bright stars) are now transparent with a soft ~2 px edge in the faint layer (`app.cli backdrop`, rebuilt from IRSA's DR1 HiPS), so they show as "no data" over the page background instead of hard black bars. Nothing is filled in. The on-page label says "dark gaps: no data"; the full description is on hover.
+- **Framing:** chosen on the real hole mask. Phones show a window with no holes; portrait tablets the window with one small hole; screens from 1024 px zoom 1.25× with the galactic centre (where most holes are) behind the dark text side. One soft disc near the Large Magellanic Cloud stays visible on wide screens: it cannot be framed out without losing the Milky Way band.
+- **Rejected:** painting over the holes (invents data); a CSS blur to calm the grain (made the sky look soft).

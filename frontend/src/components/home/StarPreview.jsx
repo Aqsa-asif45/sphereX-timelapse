@@ -18,7 +18,7 @@ export default function StarPreview() {
         </Link>
       </div>
       <figcaption className="text-sm text-ink-2">
-        <b className="font-medium text-ink">Barnard&apos;s Star</b>, a 4′ patch of sky. Each frame
+        <b className="font-medium text-ink">Barnard’s Star</b>, a 4′ patch of sky. Each frame
         is one SPHEREx visit, months apart; the amber ring marks where the star should be.{' '}
         <span className="rounded-full border border-ok/40 px-2 py-0.5 text-xs whitespace-nowrap text-ok">
           Real SPHEREx data

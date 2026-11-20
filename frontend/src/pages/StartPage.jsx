@@ -51,7 +51,7 @@ const SLIDES = [
     body: (
       <Feature title="Search any spot">
         <p>
-          Type a star&apos;s name or sky coordinates. TimeLens finds every SPHEREx image of that
+          Type a star’s name or sky coordinates. TimeLens finds every SPHEREx image of that
           spot and lines them up by date. The five challenge targets are suggested as you type.
         </p>
         <div className="mt-2 text-base">
@@ -72,7 +72,7 @@ const SLIDES = [
         preview={<StarPreview />}
       >
         <p>
-          Barnard&apos;s Star crosses the sky faster than any other star. Blink two SPHEREx visits
+          Barnard’s Star crosses the sky faster than any other star. Blink two SPHEREx visits
           months apart and watch it jump.
         </p>
       </Feature>
@@ -90,7 +90,7 @@ const SLIDES = [
       >
         <p>
           SPHEREx sees the sky in 102 colours of infrared light. Put them side by side and a
-          star&apos;s spectrum appears: here a pulsating red giant whose brightness changes between
+          star’s spectrum appears: here a pulsating red giant whose brightness changes between
           visits.
         </p>
       </Feature>

@@ -1,6 +1,7 @@
 {
   "label": "SPHEREx all-sky map, false colour: 4.6 / 2.1 / 1.1 µm as red / green / blue (DR1)",
   "use": "decoration only (home hero); never for measurements",
+  "gaps": "NASA's masked holes are transparent in the faint layer (soft edge, sigma 1.5 px): no data is shown there and nothing is filled in",
   "source": {
     "title": "SPHEREx DR1 all-sky data cube",
     "ivoid": "ivo://IPAC/P/SPHEREx/DR1/cube",
@@ -58,7 +59,7 @@
   },
   "files": {
     "sky-desktop-faint.webp": {
-      "bytes": 214390,
+      "bytes": 226930,
       "size": [
         2400,
         1200
@@ -72,7 +73,7 @@
       ]
     },
     "sky-phone-faint.webp": {
-      "bytes": 80852,
+      "bytes": 85214,
       "size": [
         1200,
         600
@@ -94,20 +95,20 @@
     }
   },
   "total_bytes": {
-    "desktop": 557086,
-    "phone": 130456
+    "desktop": 569626,
+    "phone": 134818
   },
   "stack_check": {
     "desktop": {
-      "mean_abs": 7.241,
-      "p99_abs": 38,
-      "max_abs": 201
+      "mean_abs": 7.285,
+      "p99_abs": 39,
+      "max_abs": 242
     },
     "phone": {
-      "mean_abs": 5.055,
+      "mean_abs": 5.083,
       "p99_abs": 25,
-      "max_abs": 135
+      "max_abs": 229
     }
   },
-  "created": "2026-11-15T08:34:56Z"
+  "created": "2026-11-20T14:58:52Z"
 }

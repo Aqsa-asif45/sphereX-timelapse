@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { PIXEL_ARCSEC, plural } from '../../lib/astro'
 import { REVIEWS, describe, gaiaVerdict, why } from '../../lib/movers'
 import { download } from '../../lib/photometry'
+import { BTN } from '../../lib/ui'
 
 const btn = 'rounded-ctl border border-ctl px-3 py-1 text-sm text-ink hover:bg-hover disabled:opacity-40'
 const TONE = { ok: 'border-ok/50 text-ok', warn: 'border-time/60 text-time', hot: 'border-[#ff5cf0]/60 text-[#ff8cf5]', mute: 'border-line-2 text-ink-3' }
@@ -96,7 +97,7 @@ export default function MoversPanel(p) {
               {ruled.length > 0 && (
                 <>
                   {' '}
-                  <button type="button" className="text-focus underline underline-offset-2" aria-expanded={showRuled} onClick={() => setShowRuled(!showRuled)}>
+                  <button type="button" className={`${BTN.small} ml-1 align-middle`} aria-expanded={showRuled} onClick={() => setShowRuled(!showRuled)}>
                     {showRuled ? 'Hide' : 'Show'} {ruled.length} ruled out by Gaia
                   </button>
                 </>
@@ -125,7 +126,7 @@ export default function MoversPanel(p) {
                       <td className="px-2 py-1.5">
                         <button
                           type="button"
-                          className="font-mono text-focus underline underline-offset-2"
+                          className={`${BTN.small} font-mono ${c.id === p.pick ? 'border-focus bg-focus/15' : ''}`}
                           aria-pressed={c.id === p.pick}
                           onClick={(e) => {
                             e.stopPropagation()
@@ -191,7 +192,7 @@ export default function MoversPanel(p) {
                 />
               </label>
               {picked.kind === 'yours' && (
-                <button type="button" className="self-start text-sm text-focus underline underline-offset-2" onClick={() => p.onRemoveMark(picked)}>
+                <button type="button" className={`${BTN.danger} self-start`} onClick={() => p.onRemoveMark(picked)}>
                   Remove this mark
                 </button>
               )}

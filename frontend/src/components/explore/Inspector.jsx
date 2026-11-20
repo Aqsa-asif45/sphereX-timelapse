@@ -15,6 +15,7 @@ import { PHONE_PX, flagName, isBadBit, readPixel, skyToGrid } from '../../lib/ov
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { LOOK_FOR } from '../../lib/targets'
 import SkyMap from './SkyMap'
+import { BTN } from '../../lib/ui'
 
 const SOURCES = {
   sia2: "IRSA's image search (SIA2)",
@@ -215,9 +216,9 @@ function InspectorBody(p) {
               href={single.file_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="self-start text-sm text-focus underline underline-offset-2"
+              className={`${BTN.small} self-start`}
             >
-              Original FITS at IRSA (about 70 MB)
+              Original FITS at IRSA (about 70 MB) <span aria-hidden="true">↗</span>
             </a>
           )}
           <More>
@@ -348,11 +349,11 @@ function InspectorBody(p) {
             />
             <Note>
               Cut from the original files, turned north-up and east-left at SPHEREx’s {PIXEL_ARCSEC}
-              ″ pixels (Lanczos-3). Wavelengths from each file’s spectral WCS. Each week from one
+              ″ pixels (each pixel the average of the area it covers). Wavelengths from each file’s spectral WCS. Each week from one
               release: DR1, else QR3, else QR2.
             </Note>
           </More>
-          <Link to="/about" className="self-start text-sm text-focus underline underline-offset-2">
+          <Link to="/about" className={`${BTN.small} self-start`}>
             How TimeLens works
           </Link>
         </Section>
