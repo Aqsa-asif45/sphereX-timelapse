@@ -4,13 +4,25 @@ import { zoomOnClick } from '../../store/galaxyStore'
 import { useIntro } from '../../store/introStore'
 import { BTN } from '../../lib/ui'
 import { rise, stagger } from './motion'
-import SkyBackdrop, { BACKDROP_LABEL, BACKDROP_SHORT } from './SkyBackdrop'
+import { useBackdrop } from '../../store/backdropStore'
+import BackdropSwitch from './BackdropSwitch'
+import SkyBackdrop from './SkyBackdrop'
 
 /** Full-screen hero over the real SPHEREx sky: name, a short intro and the Start button (SH-2); search is on /start. */
 export default function Hero() {
+  const real = useBackdrop((s) => s.mode) === 'real'
   return (
     <section className="relative isolate flex min-h-dvh items-center overflow-hidden">
-      <SkyBackdrop className="-z-10" />
+      {real ? (
+        <SkyBackdrop className="-z-10" />
+      ) : (
+        // the nebula is drawn behind the whole page (App.jsx); here only the veils that keep the text readable
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute inset-0 bg-bg/40 sm:bg-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-bg/85 via-bg/50 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-bg" />
+        </div>
+      )}
 
       <motion.div
         initial="hidden"
@@ -48,13 +60,7 @@ export default function Hero() {
         </motion.div>
       </motion.div>
 
-      {/* science rule: the all-sky map is for looking, never for measuring */}
-      <p
-        className="absolute right-4 bottom-8 max-w-[calc(100%-2rem)] text-right text-xs text-ink-3"
-        title={`${BACKDROP_LABEL}, NASA/IPAC. Never used for measurements. Dark gaps are where NASA masked very bright stars: no data, nothing filled in.`}
-      >
-        Backdrop: {BACKDROP_SHORT}
-      </p>
+      <BackdropSwitch className="absolute right-4 bottom-8" />
     </section>
   )
 }

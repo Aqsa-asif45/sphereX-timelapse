@@ -62,9 +62,14 @@ describe('Home', () => {
       'href',
       '/start',
     )
-    // a short label on the page, the full description (wavelengths, release, gaps) on hover
-    const label = screen.getByText(/SPHEREx all-sky map \(NASA\/IPAC\) · for looking only · dark gaps: no data/)
+    // the nebula is the default and says it is an illustration; the real SPHEREx map is one click away
+    expect(screen.getByText('Nebula: an illustration, not SPHEREx data')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Real SPHEREx sky' }))
+    expect(screen.getByRole('button', { name: 'Real SPHEREx sky' })).toHaveAttribute('aria-pressed', 'true')
+    const label = screen.getByText(/^Backdrop: NASA SPHEREx all-sky map$/)
     expect(label).toHaveAttribute('title', expect.stringMatching(/false colour.*4\.6, 2\.1, 1\.1 µm.*Never used for measurements/))
+    expect(localStorage.getItem('timelens.backdrop')).toBe('"real"')
+    fireEvent.click(screen.getByRole('button', { name: 'Illustration' })) // leave the default for the next test
   })
 
   it('keeps search on /start, not in the hero (SR-5)', () => {

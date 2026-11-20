@@ -4,6 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router'
 import GalaxyZoom from './components/intro/GalaxyZoom'
 import IntroCutscene from './components/intro/IntroCutscene'
+import FlyThrough from './components/scene/FlyThrough'
+import NebulaLayer from './components/scene/NebulaLayer'
 import Footer from './components/layout/Footer'
 import ServerBanner from './components/layout/ServerBanner'
 import { GLASS_PAGES } from './components/layout/glass'
@@ -16,6 +18,7 @@ import HomePage from './pages/HomePage'
 import NotFoundPage from './pages/NotFoundPage'
 import SplashScreen from './pages/SplashScreen'
 import StartPage from './pages/StartPage'
+import { useBackdrop } from './store/backdropStore'
 import { useGalaxy } from './store/galaxyStore'
 import { useIntro } from './store/introStore'
 
@@ -103,6 +106,11 @@ export function AppShell() {
   )
   const introOpen = useIntro((s) => s.open)
   const galaxyTo = useGalaxy((s) => s.to)
+  const galaxyKind = useGalaxy((s) => s.kind)
+  const backdrop = useBackdrop((s) => s.mode)
+  const sceneReady = useBackdrop((s) => s.ready)
+  // the 3D nebula sits behind the splash, Home and /start (one scene, kept while moving between them)
+  const nebula = backdrop === 'illustration' && (glass || splash)
   useEffect(() => {
     if (firstIntro && !splash) useIntro.getState().show()
   }, [firstIntro, splash])
@@ -119,6 +127,7 @@ export function AppShell() {
       >
         Skip to content
       </a>
+      {nebula && <NebulaLayer />}
       {slash && (
         <Navigate to={`${location.pathname.replace(/\/+$/, '')}${location.search}${location.hash}`} replace />
       )}
@@ -152,7 +161,13 @@ export function AppShell() {
         {!splash && introOpen && <IntroCutscene key="intro" onDone={endIntro} />}
       </AnimatePresence>
       <AnimatePresence>
-        {galaxyTo && <GalaxyZoom key="galaxy" to={galaxyTo} onDone={useGalaxy.getState().clear} />}
+        {/* with the nebula running, Start flies through it; otherwise (real sky, no WebGL) the 2D galaxy zoom */}
+        {galaxyTo &&
+          (nebula && sceneReady && galaxyKind !== 'galaxy' ? (
+            <FlyThrough key="fly" to={galaxyTo} onDone={useGalaxy.getState().clear} />
+          ) : (
+            <GalaxyZoom key="galaxy" to={galaxyTo} onDone={useGalaxy.getState().clear} />
+          ))}
       </AnimatePresence>
     </div>
   )

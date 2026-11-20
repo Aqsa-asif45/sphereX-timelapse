@@ -91,3 +91,10 @@ Append-only. Newest at the bottom.
 - **Gaps:** NASA's masked holes (very bright stars) are now transparent with a soft ~2 px edge in the faint layer (`app.cli backdrop`, rebuilt from IRSA's DR1 HiPS), so they show as "no data" over the page background instead of hard black bars. Nothing is filled in. The on-page label says "dark gaps: no data"; the full description is on hover.
 - **Framing:** chosen on the real hole mask. Phones show a window with no holes; portrait tablets the window with one small hole; screens from 1024 px zoom 1.25× with the galactic centre (where most holes are) behind the dark text side. One soft disc near the Large Magellanic Cloud stays visible on wide screens: it cannot be framed out without losing the Milky Way band.
 - **Rejected:** painting over the holes (invents data); a CSS blur to calm the grain (made the sky look soft).
+
+## 2026-11-20: A 3D nebula replaces the real map as the default backdrop (reverses the 2026-11-15 backdrop choice)
+- **What:** a Three.js nebula (`lib/nebula.js`, `components/scene/`): soft gas clouds at many depths and ~3,200 stars, a slow drift forward, cursor depth on fine pointers, one scene kept across the splash, Home and `/start`. "Start your experience" flies the camera through it (`FlyThrough.jsx`); without WebGL or in real-sky mode the 2D galaxy zoom is used instead.
+- **Real data kept:** a switch on Home ("Illustration · Real SPHEREx sky", remembered on this device) brings back the SPHEREx all-sky map with its "for looking only" label. The nebula is labelled "an illustration, not SPHEREx data". Real SPHEREx images remain on `/start` (globe, previews) and everywhere in Explore.
+- **Cost:** Three.js 0.186.1 (pinned) loads in its own file after first paint: 133 KB compressed with the scene. A painted gradient in the same colours shows first and stays without WebGL. "Reduce motion": one still frame, no fly-through.
+- **Note:** the SRS puts Three.js after parity (2.7, Q5); added now at the maintainer's request.
+- **Rejected:** a spiral galaxy or Milky Way panorama (the team chose nebula clouds); a 2D canvas version (the team chose real 3D).

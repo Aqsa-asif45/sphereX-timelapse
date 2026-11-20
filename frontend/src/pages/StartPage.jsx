@@ -2,6 +2,7 @@ import { useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import SkyBackdrop from '../components/home/SkyBackdrop'
+import { useBackdrop } from '../store/backdropStore'
 import SkyGlobe from '../components/home/SkyGlobe'
 import StarPreview from '../components/home/StarPreview'
 import TargetCards from '../components/home/TargetCards'
@@ -181,13 +182,14 @@ export default function StartPage() {
     e.preventDefault()
   }
 
+  const real = useBackdrop((st) => st.mode) === 'real'
   const arrow =
     'grid size-10 place-items-center rounded-full border border-ctl bg-bg-2/70 text-ink backdrop-blur hover:bg-hover disabled:opacity-40 disabled:hover:bg-bg-2/70'
 
   return (
     <main id="main" className="relative isolate flex flex-1 flex-col pt-14">
       <div className="fixed inset-0 -z-10">
-        <SkyBackdrop />
+        {real && <SkyBackdrop />}
         <div className="absolute inset-0 bg-bg/45" />
       </div>
 

@@ -35,6 +35,7 @@ export const KEYS = {
   splashSeen: 'timelens.splashSeen', // session
   introSeen: 'timelens.introSeen', // Nova's intro watched or skipped once
   lastExplore: 'timelens.lastExplore', // session: the last /explore view, for the Explore link
+  backdrop: 'timelens.backdrop', // 'illustration' (the 3D nebula) or 'real' (the SPHEREx all-sky map)
   seenHelp: 'timelens.seenHelp',
   marks: 'timelens.marks',
   reviews: 'timelens.reviews',

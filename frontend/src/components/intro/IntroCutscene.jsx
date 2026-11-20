@@ -213,7 +213,7 @@ export default function IntroCutscene({ onDone }) {
 
   // the galaxy zoom plays over the intro as it closes, then opens the page
   const leaveTo = (to) => {
-    useGalaxy.getState().go(to)
+    useGalaxy.getState().go(to, 'galaxy') // the intro always ends with the zoom into a spiral galaxy
     onDone()
   }
   const btn = 'rounded-full border border-ctl bg-bg-2/70 px-4 py-2 text-sm text-ink backdrop-blur hover:bg-hover disabled:opacity-40'

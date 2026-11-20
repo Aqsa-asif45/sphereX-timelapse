@@ -16,7 +16,7 @@ export const BACKDROP_LABEL =
   'SPHEREx all-sky map in false colour (4.6, 2.1, 1.1 µm as red, green, blue; DR1)'
 /** The short version shown on the page; the long one is on hover. */
 export const BACKDROP_SHORT =
-  'SPHEREx all-sky map (NASA/IPAC) · for looking only · dark gaps: no data'
+  'NASA SPHEREx all-sky map'
 
 const DIR = '/backdrop/'
 const srcSet = (layer) =>
