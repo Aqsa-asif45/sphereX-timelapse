@@ -23,8 +23,13 @@ export function sceneSize(panelCount, n) {
  *   scale = CSS px per SPHEREx pixel; (ox, oy) = where the data's top-left corner goes, in CSS px
  */
 export function viewGeometry({ box, dataW, dataH, dpr, zoom, centre }) {
-  const fitDev = Math.max(1, Math.floor(Math.min((box[0] - 24) / dataW, (box[1] - 24) / dataH) * dpr))
-  const devScale = Math.max(1, Math.round(fitDev * zoom))
+  const exact = Math.min((box[0] - 24) / dataW, (box[1] - 24) / dataH) * dpr
+  // Whole device pixels per SPHEREx pixel keep every pixel an exact square. For big fields (under 3 device
+  // pixels per SPHEREx pixel) that left the picture far smaller than the frame (30′: 293 px drawn 1:1 in a
+  // 528 px frame), so there the fit is fractional: pixels may differ by one device pixel, but it fills the frame.
+  const fitDev = exact >= 3 ? Math.floor(exact) : Math.max(1, exact)
+  const z = fitDev * zoom
+  const devScale = z >= 3 ? Math.round(z) : Math.max(1, z)
   const scale = devScale / dpr
   const cx = centre?.cx ?? dataW / 2
   const cy = centre?.cy ?? dataH / 2

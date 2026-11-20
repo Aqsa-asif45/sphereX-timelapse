@@ -4,7 +4,7 @@ A cleaner, more interactive first impression: a full-screen hero over the real S
 cursor movement, a glass navbar, one "Start your experience" button, and a features page that leads into
 every part of TimeLens. Built on top of the finished Phases 0–10; it does not change Explore.
 
-**Status:** H0 done · H1 next · H2–H5 not started.
+**Status:** all phases marked done: H0 (decisions) on 2026-11-15; H1–H5 built in commit fc9dd06 and refined after.
 
 Phases are named H0–H5 so they do not clash with the SRS phases (11–14). Each ends like the SRS phases:
 tests pass → run it → check in a real browser → team review → next phase.
@@ -65,34 +65,34 @@ All five were agreed by the team on 2026-11-15 and are recorded in [DECISIONS.md
 
 ## H1: The backdrop image (1 day)
 
-- [ ] Script `backend/app/cli.py backdrop` (or `scripts/`): render NASA's SPHEREx DR1 all-sky map at 2.1 µm from IRSA's HiPS into one wide image (Astropy + reproject, or the hips2fits service), plus the source, frame and date in a small JSON next to it
-- [ ] Depth layers from the real pixels only: a faint-sky layer and a bright-stars layer (split by brightness), so they can move at different speeds
-- [ ] WebP files for desktop (~2400 px) and phones (~1200 px), and a tiny blurred poster (< 20 KB) for the first paint
-- [ ] Files in `frontend/public/backdrop/`; check the total stays near 300 KB on phones
+- [x] Script `backend/app/cli.py backdrop` (or `scripts/`): render NASA's SPHEREx DR1 all-sky map at 2.1 µm from IRSA's HiPS into one wide image (Astropy + reproject, or the hips2fits service), plus the source, frame and date in a small JSON next to it
+- [x] Depth layers from the real pixels only: a faint-sky layer and a bright-stars layer (split by brightness), so they can move at different speeds
+- [x] WebP files for desktop (~2400 px) and phones (~1200 px), and a tiny blurred poster (< 20 KB) for the first paint
+- [x] Files in `frontend/public/backdrop/`; check the total stays near 300 KB on phones
 
 **Done when:** the layers stacked back together match the source map (no invented pixels), and the files are within size.
 
 ## H2: Glass navbar and footer (½ day)
 
-- [ ] TopBar: see-through with background blur over the hero and `/start`; solid on Explore, Methods and Embed (where the image must stay the brightest thing)
-- [ ] Logo, Explore, Methods, server status dot; a menu button on phones; the visible focus ring and skip link stay
-- [ ] Footer: slimmer and cleaner; keeps every data credit and the Methods link (SH-7)
+- [x] TopBar: see-through with background blur over the hero and `/start`; solid on Explore, Methods and Embed (where the image must stay the brightest thing)
+- [x] Logo, Explore, Methods, server status dot; a menu button on phones; the visible focus ring and skip link stay
+- [x] Footer: slimmer and cleaner; keeps every data credit and the Methods link (SH-7)
 
 **Done when:** the navbar reads clearly over the brightest part of the backdrop (4.5:1), works by keyboard, and nothing scrolls sideways at 320–2560 px.
 
 ## H3: Hero and splash (1 day)
 
-- [ ] `SkyBackdrop` component: layers drift slowly; the cursor shifts them by different amounts for depth (a few degrees of tilt, not a fly-through); on phones, a slow drift only (no motion-sensor permission prompts)
-- [ ] Moves only with transform and opacity (SRS 8.7); pauses when the tab is hidden; stands still with "reduce motion"
-- [ ] Hero: the name, 2–3 introductory lines, **Start your experience** (to `/start`), a compact search, and the backdrop's data label
-- [ ] Splash: restyled to fade into the hero over the same backdrop; still once per session, skippable, skipped with "reduce motion"
+- [x] `SkyBackdrop` component: layers drift slowly; the cursor shifts them by different amounts for depth (a few degrees of tilt, not a fly-through); on phones, a slow drift only (no motion-sensor permission prompts)
+- [x] Moves only with transform and opacity (SRS 8.7); pauses when the tab is hidden; stands still with "reduce motion"
+- [x] Hero: the name, 2–3 introductory lines, **Start your experience** (to `/start`), a compact search, and the backdrop's data label
+- [x] Splash: restyled to fade into the hero over the same backdrop; still once per session, skippable, skipped with "reduce motion"
 
 **Done when:** Home is usable within 3 s with 1 MB/s throttling, the backdrop is smooth (no dropped frames on a mid-range laptop), and SH-1, SH-2 and SR-5 pass.
 
 ## H4: The `/start` features page (1 day)
 
-- [ ] Route `/start` and its page title
-- [ ] A carousel or grid of large cards (arrow keys, swipe on phones, visible "1 of 7"), each a deep link:
+- [x] Route `/start` and its page title
+- [x] A carousel or grid of large cards (arrow keys, swipe on phones, visible "1 of 7"), each a deep link:
   1. Search any spot (search box with the five target suggestions)
   2. The whole sky (the Aladin globe, loaded when the slide is reached; 4 wavelengths, colour or grey, target markers)
   3. Watch a star move (`/explore?q=Barnard's Star&view=blink`, with the live preview)
@@ -100,19 +100,19 @@ All five were agreed by the team on 2026-11-15 and are recorded in [DECISIONS.md
   5. Hunt for movers (`/explore?q=Epsilon Indi B&mode=movers`)
   6. The five targets (the GIF cards with "Look for" chips)
   7. How it works (`/about`)
-- [ ] Redirect `/?embed=1&q=...` to `/embed?q=...`
-- [ ] Move the existing SkyGlobe, TargetCards and TargetPreview components here (no rewrite)
+- [x] Redirect `/?embed=1&q=...` to `/embed?q=...`
+- [x] Move the existing SkyGlobe, TargetCards and TargetPreview components here (no rewrite)
 
 **Done when:** every card opens the right view, SH-3 to SH-6 pass on `/start`, and the carousel works by keyboard and touch.
 
 ## H5: Polish and checks (½–1 day)
 
-- [ ] Playwright/browser run at 320, 390, 768, 1024, 1440 and 2560 px: no sideways scroll, no overlap
-- [ ] Keyboard-only run; focus visible everywhere; Esc and arrow keys in the carousel
-- [ ] "Reduce motion" on: backdrop still, splash skipped, carousel without animation
-- [ ] Contrast check on the navbar, hero text and cards
-- [ ] Update `home.test.jsx` and the App route tests for `/start` and the new redirect
-- [ ] Explore, Methods and Embed unchanged (Phases 6–10 still pass)
+- [x] Playwright/browser run at 320, 390, 768, 1024, 1440 and 2560 px: no sideways scroll, no overlap
+- [x] Keyboard-only run; focus visible everywhere; Esc and arrow keys in the carousel
+- [x] "Reduce motion" on: backdrop still, splash skipped, carousel without animation
+- [x] Contrast check on the navbar, hero text and cards
+- [x] Update `home.test.jsx` and the App route tests for `/start` and the new redirect
+- [x] Explore, Methods and Embed unchanged (Phases 6–10 still pass)
 
 **Done when:** all of the above pass and the team approves the look.
 

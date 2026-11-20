@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,12 +55,16 @@ describe('routes', () => {
   it('opens Home', async () => {
     renderAt('/')
     expect(await screen.findByRole('heading', { name: /find what moves/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Methods' })).toBeInTheDocument()
+    // the navbar's link (the page has a second "Methods" link further down)
+    const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]
+    expect(within(nav).getByRole('link', { name: 'Methods' })).toHaveAttribute('href', '/about')
   })
 
   it('opens Explore with the target from the URL, and puts the search in the top bar', async () => {
     renderAt('/explore?q=Barnard%27s%20Star')
-    expect(await screen.findByRole('heading', { level: 1, name: "Barnard's Star" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: "Barnard's Star" }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('search')).toBeInTheDocument()
   })
 
@@ -74,6 +78,21 @@ describe('routes', () => {
     expect(await screen.findByText('Vega')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Methods' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Methods and credits/)).not.toBeInTheDocument()
+  })
+
+  it('opens the /start features page with the glass top bar', async () => {
+    renderAt('/start')
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /start your experience/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 of 7')).toBeInTheDocument()
+    expect(document.title).toBe('Start · SPHEREx TimeLens')
+  })
+
+  it("redirects the old viewer's embed link /?embed=1&q=... to /embed", async () => {
+    renderAt('/?embed=1&q=Vega')
+    expect(await screen.findByText('Vega')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Methods' })).not.toBeInTheDocument() // the embed view, not Explore
   })
 
   it('shows Not found for unknown paths', async () => {

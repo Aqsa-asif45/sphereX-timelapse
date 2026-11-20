@@ -118,7 +118,6 @@ describe('pixel-exact viewer', () => {
     for (const [box, n, zoom] of [
       [[800, 520], 39, 1],
       [[1013, 611], 59, 2.3],
-      [[390, 420], 293, 1],
       [[1440, 700], 19, 16],
     ]) {
       const g = viewGeometry({ box, dataW: n, dataH: n, dpr, zoom, centre: null })
@@ -126,6 +125,16 @@ describe('pixel-exact viewer', () => {
       expect(g.scale * dpr).toBeCloseTo(g.devScale, 9) // device px per SPHEREx pixel: whole
       expect(Math.abs(g.ox * dpr - Math.round(g.ox * dpr))).toBeLessThan(1e-9) // placed on a device pixel
       expect(Math.abs(g.oy * dpr - Math.round(g.oy * dpr))).toBeLessThan(1e-9)
+    }
+  })
+
+  it.each([1, 1.25, 2])('a big field (30′) fills the frame instead of a small 1:1 square, at %fx scaling', (dpr) => {
+    for (const box of [[1034, 528], [390, 420]]) {
+      const g = viewGeometry({ box, dataW: 293, dataH: 293, dpr, zoom: 1, centre: null })
+      const shown = 293 * g.scale
+      // was 293 px in a 504 px frame (58 %); whole-pixel scaling from 3 device px up may still leave up to 1/4 free
+      expect(shown).toBeGreaterThan(0.75 * (Math.min(box[0], box[1]) - 24))
+      expect(shown).toBeLessThanOrEqual(Math.min(box[0], box[1]) - 24 + 1e-9) // and never overflows
     }
   })
 })

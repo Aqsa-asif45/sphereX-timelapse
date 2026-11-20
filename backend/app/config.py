@@ -20,8 +20,10 @@ class Settings(BaseSettings):
     port: int = 8000
     # comma-separated list of frontend addresses allowed to call the API in development
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
-    cutout_concurrency: int = 32
-    http_concurrency: int = 64
+    # 24 parallel connections: with 64, a home connection refused many and the retries made a cold search
+    # 10x slower (763 s vs 76 s; 789 retries vs 2). See docs/DECISIONS.md.
+    cutout_concurrency: int = 24
+    http_concurrency: int = 24
     max_exposures: int = 400
     cache_dir: Path = DATA_DIR / "cache"
     no_search_cache: bool = False

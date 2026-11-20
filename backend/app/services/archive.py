@@ -19,7 +19,7 @@ import httpx
 import numpy as np
 from astropy.io.votable import parse as parse_votable
 
-from ..config import COLLECTIONS, IRSA, IRSA_FILES, SIA_URL, TAP_URL, release_rank
+from ..config import COLLECTIONS, IRSA_FILES, SIA_URL, TAP_URL, release_rank
 
 # dr1/level2/2025W33_2C/l2b-v27-2026-228/6/level2_2025W33_2C_0321_1D6_spx_l2b-v27-2026-228.fits
 KEY_RE = re.compile(
@@ -159,7 +159,10 @@ async def irsa_reachable(client: httpx.AsyncClient) -> bool:
     if _irsa_state["ok"] is not None and time.monotonic() - _irsa_state["at"] < 60:
         return _irsa_state["ok"]
     try:
-        r = await client.get(f"{IRSA}/", timeout=httpx.Timeout(8, connect=5))
+        # ask the search service itself (a metadata-only query): IRSA's home page was seen taking 9 s while
+        # SIA2 answered in 1 s, which wrongly sent searches to the slower offline index
+        params = {"COLLECTION": "spherex_dr1", "POS": "CIRCLE 0 0 0.0001", "MAXREC": "0", "RESPONSEFORMAT": "VOTABLE"}
+        r = await client.get(SIA_URL, params=params, timeout=httpx.Timeout(10, connect=5))
         ok = r.status_code < 500
     except httpx.HTTPError:
         ok = False

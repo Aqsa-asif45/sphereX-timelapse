@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.services import archive, catalogs, skyindex
+from app.services import archive, catalogs, previews, skyindex
 from app.services.frames import position_at
 
 BARNARD = position_at(269.4520769586187, 4.6933649665767, 51544.5, -801.551, 10362.394, 61040)
@@ -57,12 +57,33 @@ def _rows(*rows):
     return fake
 
 
-def test_gaia_asks_esa_then_irsa(monkeypatch, tmp_path):
+async def _down(client, query):
+    raise catalogs.CatalogError("down")
+
+
+def test_catalogues_ask_data_lab_first(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "cache_dir", tmp_path)
+    asked = []
+
+    async def datalab(client, query):
+        asked.append(query)
+        return [{"ra": "1", "dec": "2", "phot_g_mean_mag": "9.5", "w2mpro": "9", "pmra": "", "pmdec": ""}]
+
+    monkeypatch.setattr(catalogs, "_datalab", datalab)
+    monkeypatch.setattr(catalogs, "_esa", _down)
+    monkeypatch.setattr(catalogs, "_irsa", _down)
+    assert asyncio.run(catalogs.catalog(None, "gaia", 10, 20, 0.05))["source"] == "Gaia DR3 via NOIRLab Data Lab"
+    assert asyncio.run(catalogs.catalog(None, "wise", 10, 20, 0.05))["source"] == "CatWISE2020 via NOIRLab Data Lab"
+    assert "gaia_dr3.gaia_source" in asked[0] and "catwise2020.main" in asked[1]
+
+
+def test_gaia_asks_data_lab_then_esa_then_irsa(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "cache_dir", tmp_path)
 
     async def esa_down(client, query):
         raise catalogs.CatalogError("ESA: ConnectError")
 
+    monkeypatch.setattr(catalogs, "_datalab", _down)
     monkeypatch.setattr(catalogs, "_esa", esa_down)
     monkeypatch.setattr(
         catalogs, "_irsa", _rows({"ra": "1", "dec": "2", "phot_g_mean_mag": "9.5", "pmra": "", "pmdec": "3"})
@@ -76,6 +97,7 @@ def test_gaia_asks_esa_then_irsa(monkeypatch, tmp_path):
 
 def test_catwise_keeps_only_significant_motion(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "cache_dir", tmp_path)
+    monkeypatch.setattr(catalogs, "_datalab", _down)  # falls back to IRSA
     monkeypatch.setattr(
         catalogs,
         "_irsa",
@@ -105,6 +127,7 @@ def test_catalog_endpoint(monkeypatch, tmp_path):
 
     monkeypatch.setattr(catalogs, "_irsa", down)
     monkeypatch.setattr(catalogs, "_esa", down)
+    monkeypatch.setattr(catalogs, "_datalab", down)
     with TestClient(app) as c:
         assert c.get("/api/catalogs/gaia", params={"ra": 10, "dec": 20, "r": 0.05}).status_code == 503
         assert c.get("/api/catalogs/sdss", params={"ra": 10, "dec": 20, "r": 0.05}).status_code == 422
@@ -118,7 +141,7 @@ def test_previews_only_serve_known_targets(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "cache_dir", tmp_path)
     gif = b"GIF89a\x01\x00\x01\x00\x00\x00\x00;"
     (tmp_path / "previews").mkdir()
-    (tmp_path / "previews" / "barnard.p1.gif").write_bytes(gif)
+    (tmp_path / "previews" / f"barnard.{previews.VERSION}.gif").write_bytes(gif)
     with TestClient(app) as c:
         ok = c.get("/api/previews/barnard.gif")
         assert ok.status_code == 200 and ok.content == gif and ok.headers["content-type"] == "image/gif"

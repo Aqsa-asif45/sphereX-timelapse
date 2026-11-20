@@ -66,22 +66,38 @@ export const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 // ── visits and bands ────────────────────────────────────────────────────
 
+/** A pass longer than this is cut into steps of about STEP_DAYS (see groupVisits). */
+export const LONG_PASS_DAYS = 60
+export const STEP_DAYS = 30
+
 /**
  * Group frames into survey visits: SPHEREx passes each spot about every 6 months; a pass lasts days to
- * weeks. Frames less than 30 days apart belong to the same visit.
+ * weeks. Frames less than 30 days apart belong to the same pass. Fields near the ecliptic poles (R Draconis)
+ * are watched almost non-stop, so one "pass" can last a year: a pass longer than 60 days is cut into equal
+ * steps of about 30 days, so brightness changes within it stay visible.
  * @returns {Array<{i:number, frames:object[], mjd:number, start:number, end:number}>}
  */
 export function groupVisits(frames) {
   const s = [...frames].sort((a, b) => a.mjd - b.mjd)
-  const out = []
+  const runs = []
   for (const f of s) {
-    const v = out[out.length - 1]
-    if (v && f.mjd - v.end < 30) {
-      v.frames.push(f)
-      v.end = f.mjd
-    } else out.push({ i: out.length, frames: [f], mjd: 0, start: f.mjd, end: f.mjd })
+    const r = runs[runs.length - 1]
+    if (r && f.mjd - r[r.length - 1].mjd < 30) r.push(f)
+    else runs.push([f])
   }
-  for (const v of out) v.mjd = v.frames.reduce((a, f) => a + f.mjd, 0) / v.frames.length
+  const out = []
+  for (const r of runs) {
+    const t0 = r[0].mjd
+    const span = r[r.length - 1].mjd - t0
+    const k = span > LONG_PASS_DAYS ? Math.ceil(span / STEP_DAYS) : 1
+    const parts = Array.from({ length: k }, () => [])
+    for (const f of r) parts[k === 1 ? 0 : Math.min(k - 1, Math.floor(((f.mjd - t0) / span) * k))].push(f)
+    for (const p of parts) {
+      if (!p.length) continue
+      const mjd = p.reduce((a, f) => a + f.mjd, 0) / p.length
+      out.push({ i: out.length, frames: p, mjd, start: p[0].mjd, end: p[p.length - 1].mjd })
+    }
+  }
   return out
 }
 

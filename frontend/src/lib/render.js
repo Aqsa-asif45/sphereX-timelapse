@@ -130,14 +130,61 @@ const put = (p, q, r, g, b) => {
   p[q + 3] = 255
 }
 
+/**
+ * Blank pixels inside a bright star: NASA blanks a star's core when it is too bright to measure (saturated).
+ * Drawn in the gap colour they looked like a dark hole in the star. A blank pixel whose real neighbours are
+ * all bright (and at least two of them) is marked, and the marks grow inwards a few pixels, so it can be drawn
+ * as "saturated" (the brightest colour), as WiseView does. Display only: the data stay blank and unmeasured.
+ * Blank pixels in ordinary sky (dead pixels, detector edges) are not marked and keep the gap colour.
+ * @param {(v:number) => boolean} isBright
+ * @returns {Uint8Array} 1 = saturated core
+ */
+export function saturatedCores(data, n, isBright) {
+  const sat = new Uint8Array(n * n)
+  for (let pass = 0, changed = true; pass < 4 && changed; pass++) {
+    changed = false
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        const k = j * n + i
+        if (sat[k] || Number.isFinite(data[k])) continue
+        let bright = 0
+        let real = 0
+        for (let dj = -1; dj <= 1; dj++) {
+          for (let di = -1; di <= 1; di++) {
+            const x = i + di
+            const y = j + dj
+            if ((!di && !dj) || x < 0 || y < 0 || x >= n || y >= n) continue
+            const q = y * n + x
+            if (sat[q]) bright++, real++
+            else if (Number.isFinite(data[q])) {
+              real++
+              if (isBright(data[q])) bright++
+            }
+          }
+        }
+        // at least half of the real neighbours bright: also catches blanks on a star's rim, where some
+        // neighbours are only moderately bright (a stricter "all bright" rule left dark dots there)
+        if (bright >= 2 && bright * 2 >= real) {
+          sat[k] = 1
+          changed = true
+        }
+      }
+    }
+  }
+  return sat
+}
+
 /** Paint a σ-map with the inferno colour map into RGBA `p` (row width w), starting at pixel offset o. */
 export function paintHeat(p, o, data, n, w, contrast, stretch) {
+  const sat = saturatedCores(data, n, (v) => level(v, contrast, stretch) >= 0.6)
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
       const v = data[j * n + i]
       const q = (o + j * w + i) * 4
-      if (!Number.isFinite(v)) put(p, q, ...GAP)
-      else {
+      if (!Number.isFinite(v)) {
+        if (sat[j * n + i]) put(p, q, LUT[765], LUT[766], LUT[767])
+        else put(p, q, ...GAP)
+      } else {
         const k = Math.round(level(v, contrast, stretch) * 255) * 3
         put(p, q, LUT[k], LUT[k + 1], LUT[k + 2])
       }

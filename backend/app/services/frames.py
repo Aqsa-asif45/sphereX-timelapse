@@ -26,6 +26,7 @@ from .archive import describe_key
 from .fitsio import FileReadError, NotOnAws, file_header, sky_wcs, spectral_wcs
 
 SEARCH_VERSION = "s3"  # s3: pmdec was read from pmra before; s2: deep-survey collections added
+INDEX_ANSWER_TTL_S = 3600  # how long an answer from the offline sky index is reused (IRSA's answers: always)
 
 
 def position_at(ra: float, dec: float, epoch_mjd: float, pmra: float | None, pmdec: float | None, mjd: float):
@@ -101,8 +102,10 @@ async def search(
     path = _cache_path(ra, dec, epoch_mjd, pmra, pmdec)
     if path.exists() and not settings.no_search_cache:
         out = json.loads(path.read_text())
-        out["from_cache"] = True
-        return out
+        # an answer from the offline index is kept for an hour only: IRSA's full answer replaces it once IRSA is back
+        if "index" not in out["sources"] or time.time() - path.stat().st_mtime < INDEX_ANSWER_TTL_S:
+            out["from_cache"] = True
+            return out
 
     def say(**event):
         if report:

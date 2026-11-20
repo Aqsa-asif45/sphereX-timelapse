@@ -8,6 +8,7 @@ is on that visit's date. Nothing is invented: blank pixels are drawn in the gap 
 
 import asyncio
 import io
+import math
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -20,7 +21,7 @@ from .targets import BY_SLUG
 
 N, UP = 39, 8  # 39 px = 4' of sky, shown at 312 px
 SIZE = N * UP
-VERSION = "p1"
+VERSION = "p3"  # p3: impossible pixels blanked; p2: exact resampling, long passes cut into ~30-day steps
 RING_RADIUS = 22  # px on the enlarged image
 AMBER, GAP = (255, 184, 77), (18, 22, 32)
 CONTRAST, SOFT = 25.0, 3.0
@@ -72,14 +73,26 @@ def paint(s: np.ndarray) -> np.ndarray:
     return rgb
 
 
+LONG_PASS_DAYS, STEP_DAYS = 60, 30  # same rule as groupVisits in frontend/src/lib/astro.js
+
+
 def visits(frames: list[dict]) -> list[list[dict]]:
-    """Exposures less than 30 days apart belong to one visit."""
-    out: list[list[dict]] = []
+    """Exposures less than 30 days apart belong to one pass; a pass longer than 60 days (fields near the
+    ecliptic poles, such as R Draconis, are watched almost non-stop) is cut into equal steps of ~30 days."""
+    runs: list[list[dict]] = []
     for f in sorted(frames, key=lambda f: f["mjd"]):
-        if out and f["mjd"] - out[-1][-1]["mjd"] < 30:
-            out[-1].append(f)
+        if runs and f["mjd"] - runs[-1][-1]["mjd"] < 30:
+            runs[-1].append(f)
         else:
-            out.append([f])
+            runs.append([f])
+    out: list[list[dict]] = []
+    for r in runs:
+        t0, span = r[0]["mjd"], r[-1]["mjd"] - r[0]["mjd"]
+        k = math.ceil(span / STEP_DAYS) if span > LONG_PASS_DAYS else 1
+        parts: list[list[dict]] = [[] for _ in range(k)]
+        for f in r:
+            parts[0 if k == 1 else min(k - 1, int((f["mjd"] - t0) / span * k))].append(f)
+        out += [p for p in parts if p]
     return out
 
 
@@ -125,12 +138,20 @@ async def build(client, sem, slug: str) -> bytes:
     return buf.getvalue()
 
 
+_one_at_a_time = asyncio.Semaphore(1)  # five builds at once saturated the connection for every other request
+
+
+async def _queued_build(client, sem, slug: str) -> bytes:
+    async with _one_at_a_time:
+        return await build(client, sem, slug)
+
+
 def start_build(client, sem, slug: str) -> asyncio.Task:
-    """Build a preview in the background (once at a time per target)."""
+    """Build a preview in the background (once per target, one target at a time)."""
     if slug not in BY_SLUG:
         raise KeyError(slug)
     task = _building.get(slug)
     if task is None or task.done():
-        task = asyncio.ensure_future(build(client, sem, slug))
+        task = asyncio.ensure_future(_queued_build(client, sem, slug))
         _building[slug] = task
     return task

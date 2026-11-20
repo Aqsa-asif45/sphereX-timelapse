@@ -122,7 +122,7 @@ function readoutFor(hit, { scenes, images, center, n, quality, flagNames }) {
       <div>
         Flags:{' '}
         {!quality ? (
-          <span className="text-ink-3">not loaded at this field size (switch on Bad pixels)</span>
+          <span className="text-ink-3">not loaded (switch on Bad pixels)</span>
         ) : r.withFlags === 0 ? (
           <span className="text-ink-3">no flag information</span>
         ) : r.flags.length === 0 ? (
@@ -153,8 +153,9 @@ export default function ExplorePage() {
   const n = sizeFor(p.fov)
   const center = useMemo(() => (t ? positionAt(t, REF_MJD).map((v) => +v.toFixed(6)) : null), [t])
   const { contrast, stretch, smooth, playing, speed, cur, phase, overlays, details, probe, set: setUi } = useExploreStore()
-  // flags and noise come with every image up to a 10′ field, and on request (Bad pixels) for larger ones
-  const quality = n <= 99 || overlays.bad
+  // flags and noise layers come only on request (Bad pixels): they made every image about 3x heavier and the
+  // first load about 4x slower, and without them the default view is the one `app.cli warm` pre-builds
+  const quality = overlays.bad
   const cut = useCutouts(frames.length ? frames : null, center, n, quality)
   const getStack = useStacks(cut.engine, cut.version)
   const gaia = useCatalog('gaia', center, p.fov, overlays.gaia)

@@ -18,6 +18,10 @@ import httpx
 from ..config import TAP_URL, settings
 
 ESA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"
+# NOIRLab Astro Data Lab keeps copies of Gaia DR3 (gaia_dr3.gaia_source) and CatWISE2020 (catwise2020.main).
+# Tried first: on 2026-11-15 IRSA answered 502 and ESA could not be reached from our network, while Data Lab
+# answered in ~9 s. Checked: Barnard's Star comes back with Gaia DR3's exact proper motion (-801.551, 10362.394).
+DATALAB_TAP = "https://datalab.noirlab.edu/tap/sync"
 GAIA_EPOCH_MJD = 57388.5  # J2016.0
 CATWISE_EPOCH_MJD = 57170.0  # about 2015.4, CatWISE2020's reference epoch
 MAX_ROWS = 3000
@@ -38,9 +42,24 @@ def _csv(text: str) -> list[dict]:
     return list(csv.DictReader(io.StringIO(text.strip())))
 
 
+def _q3c(ra: float, dec: float, r: float) -> str:
+    """Data Lab's cone search (its tables are indexed with Q3C)."""
+    return f"'t'=Q3C_RADIAL_QUERY(ra, dec, {ra:.6f}, {dec:.6f}, {r:.5f})"
+
+
+async def _datalab(client: httpx.AsyncClient, query: str) -> list[dict]:
+    params = {"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query}
+    try:
+        r = await client.get(DATALAB_TAP, params=params, timeout=httpx.Timeout(45, connect=8))
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise CatalogError(f"Data Lab: {type(e).__name__}") from e
+    return _csv(r.text)
+
+
 async def _irsa(client: httpx.AsyncClient, query: str) -> list[dict]:
     try:
-        r = await client.get(TAP_URL, params={"QUERY": query, "FORMAT": "csv"}, timeout=60)
+        r = await client.get(TAP_URL, params={"QUERY": query, "FORMAT": "csv"}, timeout=httpx.Timeout(45, connect=8))
         r.raise_for_status()
     except httpx.HTTPError as e:
         raise CatalogError(f"IRSA: {type(e).__name__}") from e
@@ -50,7 +69,7 @@ async def _irsa(client: httpx.AsyncClient, query: str) -> list[dict]:
 async def _esa(client: httpx.AsyncClient, query: str) -> list[dict]:
     data = {"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query}
     try:
-        r = await client.post(ESA_TAP, data=data, timeout=60)
+        r = await client.post(ESA_TAP, data=data, timeout=httpx.Timeout(30, connect=8))
         r.raise_for_status()
     except httpx.HTTPError as e:
         raise CatalogError(f"ESA: {type(e).__name__}") from e
@@ -69,15 +88,23 @@ async def gaia(client: httpx.AsyncClient, ra: float, dec: float, r: float) -> di
     cols = "ra, dec, pmra, pmdec, phot_g_mean_mag"
     where = f"{_circle(ra, dec, r)} AND phot_g_mean_mag < 20"
     try:
-        rows = await _esa(
-            client, f"SELECT TOP {MAX_ROWS} {cols} FROM gaiadr3.gaia_source WHERE {where} ORDER BY phot_g_mean_mag"
+        rows = await _datalab(
+            client,
+            f"SELECT TOP {MAX_ROWS} {cols} FROM gaia_dr3.gaia_source "
+            f"WHERE {_q3c(ra, dec, r)} AND phot_g_mean_mag < 20 ORDER BY phot_g_mean_mag",
         )
-        source = "Gaia DR3 via ESA"
+        source = "Gaia DR3 via NOIRLab Data Lab"
     except CatalogError:
-        rows = await _irsa(
-            client, f"SELECT TOP {MAX_ROWS} {cols} FROM gaia_dr3_source WHERE {where} ORDER BY phot_g_mean_mag"
-        )
-        source = "Gaia DR3 via IRSA"
+        try:
+            rows = await _esa(
+                client, f"SELECT TOP {MAX_ROWS} {cols} FROM gaiadr3.gaia_source WHERE {where} ORDER BY phot_g_mean_mag"
+            )
+            source = "Gaia DR3 via ESA"
+        except CatalogError:
+            rows = await _irsa(
+                client, f"SELECT TOP {MAX_ROWS} {cols} FROM gaia_dr3_source WHERE {where} ORDER BY phot_g_mean_mag"
+            )
+            source = "Gaia DR3 via IRSA"
     out = [
         {
             "ra": _num(x["ra"]),
@@ -92,12 +119,23 @@ async def gaia(client: httpx.AsyncClient, ra: float, dec: float, r: float) -> di
 
 
 async def catwise(client: httpx.AsyncClient, ra: float, dec: float, r: float) -> dict:
-    q = (
-        f"SELECT TOP {MAX_ROWS} ra, dec, w1mpro, w2mpro, pmra, pmdec, sigpmra, sigpmdec FROM catwise_2020 "
-        f"WHERE {_circle(ra, dec, r)} AND w2mpro < 17 ORDER BY w2mpro"
-    )
+    cols = "ra, dec, w1mpro, w2mpro, pmra, pmdec, sigpmra, sigpmdec"  # same names and units (arcsec/yr) in both
+    try:
+        rows = await _datalab(
+            client,
+            f"SELECT TOP {MAX_ROWS} {cols} FROM catwise2020.main "
+            f"WHERE {_q3c(ra, dec, r)} AND w2mpro < 17 ORDER BY w2mpro",
+        )
+        source = "CatWISE2020 via NOIRLab Data Lab"
+    except CatalogError:
+        rows = await _irsa(
+            client,
+            f"SELECT TOP {MAX_ROWS} {cols} FROM catwise_2020 "
+            f"WHERE {_circle(ra, dec, r)} AND w2mpro < 17 ORDER BY w2mpro",
+        )
+        source = "CatWISE2020 via IRSA"
     out = []
-    for x in await _irsa(client, q):
+    for x in rows:
         pmra, pmdec = _num(x.get("pmra")), _num(x.get("pmdec"))
         sra, sdec = _num(x.get("sigpmra")), _num(x.get("sigpmdec"))
         keep = None not in (pmra, pmdec, sra, sdec) and (pmra**2 + pmdec**2) ** 0.5 > 5 * ((sra**2 + sdec**2) ** 0.5)
@@ -115,7 +153,7 @@ async def catwise(client: httpx.AsyncClient, ra: float, dec: float, r: float) ->
         "epoch_mjd": CATWISE_EPOCH_MJD,
         "band": "W2 (4.6 µm)",
         "pm_unit": "mas/yr",
-        "source": "CatWISE2020 via IRSA",
+        "source": source,
         "rows": out,
     }
 

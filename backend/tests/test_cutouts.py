@@ -5,11 +5,12 @@ import json
 
 import numpy as np
 import pytest
+from astropy.wcs import WCS
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services import fitsio
-from app.services.cutouts import grid_sky, lanczos3, nearest, resample
+from app.services.cutouts import blank_impossible, grid_sky, nearest, resample, resample_exact
 
 KEY = "dr1/level2/2025W33_2C/l2b-v27-2026-228/6/level2_2025W33_2C_0321_1D6_spx_l2b-v27-2026-228.fits"
 
@@ -41,26 +42,84 @@ def test_grid_is_centred_north_up_east_left():
     assert (dec[0, 19] - dec[38, 19]) * 3600 == pytest.approx(38 * 6.15, rel=1e-4)
 
 
-def test_lanczos3_kernel():
-    assert lanczos3(np.array([0.0]))[0] == 1
-    assert np.allclose(lanczos3(np.array([1.0, 2.0, -1.0, 3.0, 3.5])), 0, atol=1e-12)
+def test_grid_corners_surround_the_centres():
+    ra, dec = grid_sky(269.4, 4.7, 39, 6.15 / 3600)
+    cra, cdec = grid_sky(269.4, 4.7, 39, 6.15 / 3600, corners=True)
+    assert cra.shape == (40, 40)
+    assert (cdec[0, 0] + cdec[1, 1]) / 2 == pytest.approx(dec[0, 0], abs=1e-7)  # 1e-7 deg = 0.0004"
+    assert (cra[0, 0] + cra[1, 1]) / 2 == pytest.approx(ra[0, 0], abs=1e-7)
 
 
-def test_resample_keeps_exact_pixels_and_constants():
-    block = np.arange(100, dtype=float).reshape(10, 10)
-    fx, fy = np.array([[4.0, 5.0]]), np.array([[6.0, 3.0]])
-    assert np.allclose(resample(block, fx, fy), [[64.0, 35.0]])  # on a pixel centre: that pixel's value
+def _aligned(n, shift=0.0):
+    """Corner positions of an output grid lying exactly on a detector grid (shifted by `shift` pixels)."""
+    j, i = np.mgrid[0 : n + 1, 0 : n + 1]
+    return i - 0.5 + shift, n - 0.5 - j + shift  # our row 0 (north) is the detector's top row
+
+
+def test_area_resample_copies_aligned_pixels_and_keeps_constants():
+    block = np.arange(25, dtype=float).reshape(5, 5)
+    cx, cy = _aligned(5)
+    assert np.allclose(resample(block, cx, cy), block[::-1])  # same grid: the same values, north up
     flat = np.full((10, 10), 7.5)
-    assert np.allclose(resample(flat, np.array([[4.3]]), np.array([[5.7]])), 7.5, atol=1e-5)
+    cx, cy = _aligned(8, 0.37)
+    assert np.allclose(resample(flat, cx, cy), 7.5)
 
 
-def test_blank_stays_blank_and_outside_is_nan():
-    block = np.ones((10, 10))
-    block[5, 5] = np.nan
-    out = resample(block, np.array([[5.2, 2.0, 12.0]]), np.array([[4.9, 2.0, 2.0]]))
-    assert np.isnan(out[0, 0])  # nearest source pixel is blank: never filled in
-    assert out[0, 1] == pytest.approx(1.0)
-    assert np.isnan(out[0, 2])  # off the block
+def test_area_resample_never_rings_and_keeps_blanks_blank():
+    block = np.zeros((9, 9))
+    block[4, 4] = 1000.0  # a sharp star, one pixel wide (Lanczos rang to large negatives here)
+    cx, cy = _aligned(9, 0.4)
+    out = resample(block, cx, cy)
+    assert np.nanmin(out) >= 0 and np.nanmax(out) <= 1000
+    block[4, 4] = np.nan
+    cx, cy = _aligned(9)
+    out = resample(block, cx, cy)
+    assert np.isnan(out[4, 4]) and np.isfinite(out[4, 3])  # a blank stays blank; neighbours are not touched
+    cx, cy = _aligned(9, 20.0)
+    assert np.isnan(resample(block, cx, cy)).all()  # off the block
+
+
+def test_impossible_pixels_are_blanked_and_real_ones_kept():
+    rng = np.random.default_rng(1)
+    block = 10 + rng.normal(0, 1, (40, 40))  # sky at 10 MJy/sr, noise 1
+    block[5, 5] = -1000.0  # a dead pixel far below the sky
+    block[20, 20] = 5000.0  # a bright star: must stay
+    block[30, 30] = 7.0  # 3 sigma low: ordinary noise, must stay
+    out = blank_impossible(block)
+    assert np.isnan(out[5, 5]) and out[20, 20] == 5000.0 and out[30, 30] == 7.0
+    assert np.isfinite(out).sum() == 40 * 40 - 1
+
+
+def _tan(ra, dec, n, s):
+    w = WCS(naxis=2)
+    w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    w.wcs.crval = [ra, dec]
+    w.wcs.crpix = [(n + 1) / 2] * 2
+    w.wcs.cdelt = [-s / 3600, s / 3600]
+    return w
+
+
+def test_exact_resample_on_the_same_grid_is_a_copy_north_up():
+    n, s = 7, 6.15
+    block = np.arange(49, dtype=float).reshape(7, 7)  # FITS order: row 0 is south
+    cx, cy = _aligned(n)
+    out = resample_exact(block, _tan(30.0, 10.0, n, s), 30.0, 10.0, n, s, cx, cy)
+    assert np.allclose(out, block[::-1], atol=1e-6)
+
+
+def test_exact_resample_never_rings_and_keeps_blanks_blank():
+    n, s = 9, 6.15
+    block = np.zeros((9, 9))
+    block[4, 4] = 1000.0
+    cx, cy = _aligned(n, 0.4)
+    # the output grid is the block grid moved 0.4 pixel north-east-ish: overlaps are partial everywhere
+    out = resample_exact(block, _tan(30.0, 10.0, n, s), 30.0 - 0.4 * s / 3600, 10.0 + 0.4 * s / 3600, n, s, cx, cy)
+    assert np.nanmin(out) >= -1e-9 and np.nanmax(out) <= 1000
+    assert np.nansum(out) == pytest.approx(1000, rel=0.02)  # the star's light is conserved
+    block[4, 4] = np.nan
+    cx, cy = _aligned(n)
+    out = resample_exact(block, _tan(30.0, 10.0, n, s), 30.0, 10.0, n, s, cx, cy)
+    assert np.isnan(out[4, 4]) and out[4, 3] == pytest.approx(0, abs=1e-9)
 
 
 def test_nearest_for_flags():

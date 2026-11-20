@@ -20,6 +20,8 @@ async def get_preview(request: Request, name: str) -> FileResponse:
         raise HTTPException(404, "Unknown target.")
     path = preview_path(slug)
     if path.exists():
-        return FileResponse(path, media_type="image/gif", headers={"Cache-Control": "public, max-age=3600"})
+        # no-cache = check with the server each time (a cheap 304 via ETag): a rebuilt preview keeps its address,
+        # so a long browser cache kept showing the old one
+        return FileResponse(path, media_type="image/gif", headers={"Cache-Control": "no-cache"})
     start_build(request.app.state.http, request.app.state.s3, slug)
     raise HTTPException(404, "Preview not built yet; it is being made now. Try again in a few minutes.")
